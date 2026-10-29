@@ -10,7 +10,7 @@
 ## Clone and load
 
 ```sh
-git clone git@github.com:notij/WAC.git
+git clone git@github.com:xianshunJ/WAC.git
 cd WAC
 npm ci
 ```
