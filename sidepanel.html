@@ -1,0 +1,540 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light" />
+    <title>WAC · Make room for your week</title>
+    <link rel="icon" href="icons/icon32.png" />
+    <link rel="stylesheet" href="src/panel.css" />
+    <script type="module" src="src/panel.mjs"></script>
+  </head>
+  <body>
+    <header class="app-header">
+      <a class="brand" href="sidepanel.html" aria-label="WAC home"
+        ><span class="brand-icon" aria-hidden="true">w<span>+</span></span
+        ><span>WAC<small>WORKLOAD AWARE CALENDAR</small></span></a
+      >
+      <div class="header-actions">
+        <span id="connection-status" class="status"><i></i> Demo workspace</span
+        ><button
+          class="icon-button"
+          id="expand-button"
+          title="Open Google Calendar"
+          aria-label="Open Google Calendar"
+        >
+          ↗</button
+        ><button class="icon-button" id="settings-button" title="Settings" aria-label="Settings">
+          ⚙
+        </button>
+      </div>
+    </header>
+    <div class="workspace">
+      <section class="calendar-pane" aria-label="Week calendar">
+        <div class="intro">
+          <p class="eyebrow">A LITTLE CLARITY GOES A LONG WAY</p>
+          <h1>Make room for<br />your <em>whole</em> week.</h1>
+          <p>Your deadlines, the effort behind them,<br />and space for everything else.</p>
+          <span class="intro-mark" aria-hidden="true">✳</span>
+        </div>
+        <div class="calendar-toolbar">
+          <div>
+            <h2 id="week-title">Your week</h2>
+            <span id="week-subtitle" class="muted"></span>
+          </div>
+          <div class="week-navigation">
+            <button class="icon-button" id="prev-week" aria-label="Previous week">‹</button
+            ><button class="small-button" id="today-button">Today</button
+            ><button class="icon-button" id="next-week" aria-label="Next week">›</button>
+          </div>
+        </div>
+        <div class="calendar-key">
+          <span><i class="key-dot purple"></i> Assignments</span
+          ><span><i class="key-dot teal"></i> Work blocks</span
+          ><span><i class="key-dot gray"></i> Existing plans</span>
+        </div>
+        <div id="calendar" class="week-calendar"></div>
+        <div class="calendar-footer">
+          <span id="calendar-note">Sample classes help make the demo realistic.</span
+          ><span>Time for life, too. <span aria-hidden="true">↗</span></span>
+        </div>
+      </section>
+      <aside class="task-pane" aria-label="Workload planner">
+        <section class="planner-heading">
+          <div>
+            <p class="eyebrow">YOUR WORKLOAD, IN PERSPECTIVE</p>
+            <h2>A plan you can breathe in.</h2>
+          </div>
+          <button class="button primary" id="new-task">+ Add task</button>
+        </section>
+        <section class="summary" aria-label="Workload summary">
+          <div><strong id="total-effort">0h</strong><span>estimated effort</span></div>
+          <div><strong id="planned-effort">0h</strong><span>time planned</span></div>
+          <div><strong id="due-count">0</strong><span>due in 7 days</span></div>
+        </section>
+        <div id="workload-notice" class="notice" hidden></div>
+        <section class="display-controls" aria-label="Display options">
+          <div><strong>See the effort</strong><span>One week. Three perspectives.</span></div>
+          <div class="segmented" id="display-modes">
+            <button data-mode="off" aria-pressed="false">Off</button
+            ><button data-mode="tags" aria-pressed="false">Tags</button
+            ><button data-mode="patterns" aria-pressed="true">Patterns</button>
+          </div>
+          <p id="display-help">Course colors stay. Text and patterns add effort.</p>
+        </section>
+        <div class="list-toolbar">
+          <div class="tabs" role="tablist" aria-label="Planner view">
+            <button id="tasks-tab" role="tab" aria-selected="true" aria-controls="task-list">
+              Assignments <span id="task-count">0</span></button
+            ><button
+              id="plan-tab"
+              role="tab"
+              aria-selected="false"
+              aria-controls="plan-list"
+              tabindex="-1"
+            >
+              Work blocks <span id="block-count">0</span>
+            </button>
+          </div>
+          <button class="text-button" id="demo-button">Load examples ↺</button>
+        </div>
+        <section
+          id="task-list"
+          class="task-list"
+          role="tabpanel"
+          aria-labelledby="tasks-tab"
+        ></section>
+        <section
+          id="plan-list"
+          class="plan-list"
+          role="tabpanel"
+          aria-labelledby="plan-tab"
+          hidden
+        ></section>
+        <section class="google-card">
+          <div class="google-card-title">
+            <span class="google-icon" aria-hidden="true">31</span>
+            <div>
+              <strong>Bring your calendar along.</strong>
+              <p id="google-description">Try the demo, then connect your real week.</p>
+            </div>
+          </div>
+          <div class="google-actions">
+            <button id="connect-button" class="button secondary">
+              Connect Google Calendar <span aria-hidden="true">↗</span></button
+            ><button id="refresh-button" class="small-button" hidden>Refresh</button
+            ><button id="publish-button" class="button primary" hidden>Publish plan</button>
+          </div>
+          <p class="fine-print" id="google-note">
+            Demo plans stay on this device. Nothing is sent to Google.
+          </p>
+        </section>
+        <footer class="panel-footer">
+          <span
+            ><i class="tiny-star" aria-hidden="true">✳</i> Plan the work. Keep the breathing
+            room.</span
+          ><span>WAC / HCI PROTOTYPE</span>
+        </footer>
+      </aside>
+    </div>
+    <dialog id="profile-dialog" aria-labelledby="profile-title">
+      <form id="profile-form">
+        <div class="dialog-header">
+          <div>
+            <p class="eyebrow">A PLAN THAT STARTS WITH YOU</p>
+            <h2 id="profile-title">Tell us how you work.</h2>
+          </div>
+          <button type="button" class="icon-button close-dialog" aria-label="Close">×</button>
+        </div>
+        <p class="muted profile-intro">
+          A little background helps tailor future task estimates. These questions work for any
+          subject or occupation. Every answer is optional, and you can update it in Settings.
+        </p>
+        <label
+          >Study or work area<input
+            name="fieldOfStudy"
+            maxlength="160"
+            placeholder="e.g. History, nursing, design, business" /></label
+        ><label
+          >Current stage<select name="stage">
+            <option value="unspecified">Prefer not to say</option>
+            <option value="school">School</option>
+            <option value="undergraduate">Undergraduate study</option>
+            <option value="graduate">Graduate study</option>
+            <option value="professional">Professional / continuing education</option>
+            <option value="other">Other</option>
+          </select></label
+        ><label
+          >Topics or activities you know well<textarea
+            name="familiarTopics"
+            rows="2"
+            maxlength="1500"
+            placeholder="e.g. Essay writing, statistics, drawing"
+          ></textarea></label
+        ><label
+          >Topics or activities you are still learning<textarea
+            name="developingTopics"
+            rows="2"
+            maxlength="1500"
+            placeholder="e.g. Research methods, presentations"
+          ></textarea>
+        </label>
+        <div class="form-row">
+          <label
+            >Reading pace<select name="readingPace">
+              <option value="typical">Typical for me</option>
+              <option value="slower">I like more reading time</option>
+              <option value="faster">I usually read quickly</option>
+            </select></label
+          ><label
+            >Confidence with writing<select name="writingConfidence">
+              <option value="some">Some experience</option>
+              <option value="new">Still building confidence</option>
+              <option value="familiar">Very comfortable</option>
+            </select></label
+          >
+        </div>
+        <label
+          >Preferred focus block (minutes)<input
+            name="preferredBlockMinutes"
+            type="number"
+            min="5"
+            max="240"
+            value="45"
+            required
+          /><span class="field-help"
+            >A starting preference only. You can choose different lengths for each task.</span
+          ></label
+        >
+        <p class="fine-print">
+          Your profile is stored on this device. When you choose Analyze assignment, it is sent with
+          the instructions to the analysis service to tailor the estimate.
+        </p>
+        <p id="profile-error" class="form-error" role="alert" hidden></p>
+        <div class="dialog-footer">
+          <button type="button" id="skip-profile" class="button ghost">Use defaults for now</button
+          ><button type="submit" class="button primary">Save my preferences</button>
+        </div>
+      </form>
+    </dialog>
+    <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+    <dialog id="task-dialog" aria-labelledby="task-dialog-title">
+      <form id="task-form">
+        <div class="dialog-header">
+          <div>
+            <p class="eyebrow">MAKE THE INVISIBLE WORK VISIBLE</p>
+            <h2 id="task-dialog-title">A little detail. A clearer plan.</h2>
+          </div>
+          <button type="button" class="icon-button close-dialog" aria-label="Close">×</button>
+        </div>
+        <label
+          >Assignment title<input
+            name="title"
+            id="task-title"
+            required
+            maxlength="160"
+            placeholder="e.g. Literature review"
+        /></label>
+        <div class="form-row">
+          <label
+            >Course<input
+              name="course"
+              list="course-list"
+              maxlength="50"
+              value="CSCE 671" /><datalist id="course-list">
+              <option value="CSCE 671"></option>
+              <option value="CSCE 633"></option>
+              <option value="STAT 601"></option>
+              <option value="Personal"></option></datalist></label
+          ><label>Deadline<input name="due" id="task-due" type="datetime-local" required /></label>
+        </div>
+        <section class="assignment-import">
+          <label
+            >Attach assignment instructions<input
+              id="assignment-file"
+              type="file"
+              accept=".pdf,.txt,.md,application/pdf,text/plain,text/markdown"
+          /></label>
+          <div id="attachment-details" class="attachment-details" hidden>
+            <span id="attachment-name"></span
+            ><button id="remove-attachment" type="button" class="text-button">Remove</button>
+          </div>
+          <p class="field-help">
+            PDF up to 6 MB. TXT and Markdown are added to the text below. Original files are not
+            retained; imported text stays in the instructions.
+          </p>
+        </section>
+        <label
+          >Assignment instructions or long text<textarea
+            name="description"
+            id="task-description"
+            rows="5"
+            maxlength="60000"
+            placeholder="Paste the full assignment, rubric, or other instructions…"
+          ></textarea
+          ><span id="text-count" class="field-help">0 / 60,000 characters</span></label
+        >
+        <div class="form-row">
+          <label
+            >Task type<select name="type" id="task-type">
+              <option value="reading">Reading + notes</option>
+              <option value="writing">Writing</option>
+              <option value="coding">Coding</option>
+              <option value="problems">Problem set</option>
+              <option value="project">Project</option>
+            </select></label
+          ><label
+            ><span id="size-label">Number of pages</span
+            ><input
+              name="size"
+              id="task-size"
+              type="number"
+              min="1"
+              max="100000"
+              value="20"
+              required
+          /></label>
+        </div>
+        <label
+          >How familiar is this work?<select name="familiarity">
+            <option value="some">Some experience</option>
+            <option value="familiar">Very familiar</option>
+            <option value="new">New to me</option>
+          </select></label
+        >
+        <div class="analysis-actions">
+          <button id="analyze-assignment" type="button" class="button secondary">
+            ✳ Analyze assignment</button
+          ><span id="analysis-progress" class="field-help" role="status" aria-live="polite"></span>
+        </div>
+        <p class="fine-print">
+          Analysis sends your instructions, any attached PDF, and your learning profile to the
+          analysis service. Review its suggestions before saving.
+        </p>
+        <p id="analysis-error" class="form-error" role="alert" hidden></p>
+        <section id="analysis-result" class="analysis-result" aria-live="polite" hidden>
+          <div class="analysis-result-heading">
+            <strong id="analysis-source">AI task draft</strong
+            ><span id="analysis-complexity"></span>
+          </div>
+          <p id="analysis-summary"></p>
+          <div id="analysis-steps"></div>
+          <div id="analysis-context"></div>
+          <p class="fine-print">
+            Complexity and time are separate judgments. You can edit the title, deadline, minutes,
+            and effort label below.
+          </p>
+        </section>
+        <div class="estimate-preview">
+          <div><span>Suggested estimate</span><strong id="estimate-value">—</strong></div>
+          <p id="estimate-reason"></p>
+          <small>Rule-based starting point. Your experience gets the final say.</small>
+        </div>
+        <div class="form-row">
+          <label
+            >Your estimate (minutes)<input
+              name="estimateMinutes"
+              id="task-estimate"
+              type="number"
+              min="15"
+              max="2400"
+              step="1"
+              placeholder="Use suggested estimate" /></label
+          ><label
+            >Effort label<select name="effort">
+              <option value="">Automatic (time)</option>
+              <option value="low">+ Low</option>
+              <option value="medium">++ Medium</option>
+              <option value="high">+++ High</option>
+            </select></label
+          >
+        </div>
+        <p id="task-error" class="form-error" role="alert" hidden></p>
+        <div class="dialog-footer">
+          <button type="button" class="button ghost close-dialog">Cancel</button
+          ><button type="submit" class="button primary">Save assignment</button>
+        </div>
+      </form>
+    </dialog>
+    <dialog id="plan-dialog" aria-labelledby="plan-title">
+      <div class="dialog-header">
+        <div>
+          <p class="eyebrow">A LITTLE WORK, A LITTLE EARLIER</p>
+          <h2 id="plan-title">Make a little room.</h2>
+        </div>
+        <button class="icon-button close-dialog" aria-label="Close">×</button>
+      </div>
+      <p id="plan-description" class="muted"></p>
+      <section class="split-controls">
+        <div class="form-row">
+          <label
+            >How would you like to split it?<select id="split-mode">
+              <option value="uniform">Use a focus-block length</option>
+              <option value="custom">Set each block myself</option>
+            </select></label
+          ><label id="uniform-length-label"
+            >Focus-block length (minutes)<input
+              id="plan-block-length"
+              type="number"
+              min="5"
+              max="240"
+              value="45"
+          /></label>
+        </div>
+        <label id="custom-lengths-label" hidden
+          >Block lengths, in minutes<input
+            id="custom-block-lengths"
+            placeholder="e.g. 25, 45, 50"
+            inputmode="text"
+          /><span class="field-help"
+            >Each custom block can be 5–240 minutes. A shorter total creates a partial plan.</span
+          ></label
+        >
+        <div id="block-presets" class="block-presets" aria-label="Common focus lengths">
+          <button type="button" data-minutes="15">15 min</button
+          ><button type="button" data-minutes="25">25 min</button
+          ><button type="button" data-minutes="30">30 min</button
+          ><button type="button" data-minutes="45">45 min</button
+          ><button type="button" data-minutes="60">60 min</button
+          ><button type="button" data-minutes="90">90 min</button>
+        </div>
+        <p id="split-summary" class="field-help"></p>
+        <button id="update-plan" type="button" class="button secondary">Update plan</button>
+      </section>
+      <div id="proposal-list" class="proposal-list"></div>
+      <div id="plan-warning" class="notice" hidden></div>
+      <p id="plan-error" class="form-error" role="alert" hidden></p>
+      <div class="dialog-footer">
+        <button class="button ghost close-dialog">Cancel</button
+        ><button id="save-plan" class="button primary">Save local plan</button>
+      </div>
+    </dialog>
+    <dialog id="publish-dialog" aria-labelledby="publish-title">
+      <div class="dialog-header">
+        <div>
+          <p class="eyebrow">READY WHEN YOU ARE</p>
+          <h2 id="publish-title">Put your plan on the calendar.</h2>
+        </div>
+        <button class="icon-button close-dialog" aria-label="Close">×</button>
+      </div>
+      <p class="muted">
+        The work blocks below will be added to your <strong>primary Google Calendar</strong>.
+        Existing events stay as they are.
+      </p>
+      <div id="publish-list" class="proposal-list"></div>
+      <p class="fine-print">
+        WAC checks for conflicts again before publishing. Assignments and deadline markers remain in
+        this planner. Reminder settings apply to these new work blocks.
+      </p>
+      <p id="publish-error" class="form-error" role="alert" hidden></p>
+      <div class="dialog-footer">
+        <button class="button ghost close-dialog">Cancel</button
+        ><button id="confirm-publish" class="button primary">Publish work blocks</button>
+      </div>
+    </dialog>
+    <dialog id="settings-dialog" aria-labelledby="settings-title">
+      <form id="settings-form">
+        <div class="dialog-header">
+          <div>
+            <p class="eyebrow">MAKE IT YOURS</p>
+            <h2 id="settings-title">A rhythm that works for you.</h2>
+          </div>
+          <button type="button" class="icon-button close-dialog" aria-label="Close">×</button>
+        </div>
+        <button type="button" id="edit-profile" class="button secondary profile-settings-button">
+          Edit my learning profile
+        </button>
+        <div class="form-row">
+          <label>Workday starts<select name="workStart" id="work-start"></select></label
+          ><label>Workday ends<select name="workEnd" id="work-end"></select></label>
+        </div>
+        <div class="form-row">
+          <label
+            >Daily WAC work limit<select name="dailyLimit">
+              <option value="120">2 hours</option>
+              <option value="180">3 hours</option>
+              <option value="240">4 hours</option>
+              <option value="300">5 hours</option>
+              <option value="360">6 hours</option>
+            </select></label
+          ><label
+            >Work block length<input name="blockMinutes" type="number" min="5" max="240" required
+          /></label>
+        </div>
+        <div class="form-row">
+          <label
+            >Space between plans<select name="breakMinutes">
+              <option value="0">No extra gap</option>
+              <option value="10">10 minutes</option>
+              <option value="15">15 minutes</option>
+              <option value="30">30 minutes</option>
+            </select></label
+          ><label
+            >Google reminders per block<select name="reminderCount">
+              <option value="0">None</option>
+              <option value="1">1 · 10 min before</option>
+              <option value="2">2 · 10 & 30 min</option>
+              <option value="3">3 · 10, 30 & 60 min</option>
+              <option value="4">4 · also 1 day before</option>
+              <option value="5">5 · also 2 days before</option>
+            </select></label
+          >
+        </div>
+        <label class="checkbox-label"
+          ><input name="weekends" type="checkbox" /> Include weekends when finding time</label
+        >
+        <p class="fine-print">
+          Daily limit counts WAC work blocks. Busy-time checks cover your primary Google Calendar
+          only. Settings affect new plans and new Google events.
+        </p>
+        <details id="calendar-guide">
+          <summary>How to connect Google Calendar</summary>
+          <ol>
+            <li>
+              Open WAC from the Chrome toolbar and select <strong>Connect Google Calendar</strong>.
+            </li>
+            <li>Confirm that Google is using the account whose calendar you want to plan with.</li>
+            <li>Review Google's permission request and allow WAC to access your calendar.</li>
+            <li>
+              Return to WAC and find time for your tasks. Review your work blocks, then choose
+              <strong>Publish plan</strong> to add them to your existing calendar.
+            </li>
+          </ol>
+          <p class="fine-print">
+            WAC checks availability on your primary calendar and adds the work blocks you choose to
+            publish. You can disconnect below at any time.
+          </p>
+          <p
+            id="calendar-connection-status"
+            class="fine-print"
+            role="status"
+            aria-live="polite"
+          ></p>
+          <button type="button" id="settings-connect-button" class="button primary">
+            Connect Google Calendar
+          </button>
+        </details>
+        <button type="button" id="disconnect-button" class="text-button danger" hidden>
+          Disconnect Google Calendar
+        </button>
+        <p id="settings-error" class="form-error" role="alert" hidden></p>
+        <div class="dialog-footer">
+          <button type="button" class="button ghost close-dialog">Cancel</button
+          ><button type="submit" class="button primary">Save preferences</button>
+        </div>
+      </form>
+    </dialog>
+    <dialog id="confirm-dialog" aria-labelledby="confirm-title">
+      <div class="dialog-header"><h2 id="confirm-title">Remove this assignment?</h2></div>
+      <p id="confirm-description" class="muted"></p>
+      <div class="dialog-footer">
+        <button class="button ghost close-dialog">Cancel</button
+        ><button id="confirm-action" class="button primary">Continue</button>
+      </div>
+    </dialog>
+    <noscript
+      >This planner needs JavaScript. Load it as an unpacked Chrome extension or serve the folder
+      locally.</noscript
+    >
+  </body>
+</html>
