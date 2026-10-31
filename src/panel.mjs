@@ -206,9 +206,7 @@ function renderCalendar() {
   $('#week-subtitle').textContent =
     `${dateLabel(week)} – ${dateLabel(days[6])} · ${Intl.DateTimeFormat().resolvedOptions().timeZone}`;
   const mode = state.settings.visualMode;
-  const busy = state.google.connected
-    ? state.calendarEvents.filter((e) => !e.wac)
-    : demoBusy(new Date(state.demoAnchor));
+  const busy = state.google.connected ? state.calendarEvents.filter((e) => !e.wac) : demoBusy(week);
   const events = [
     ...busy.map((e) => ({ ...e, work: false })),
     ...state.blocks.map((b) => ({

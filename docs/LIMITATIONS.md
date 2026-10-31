@@ -2,8 +2,8 @@
 
 - Rule-based and optional AI estimates are editable starting points, not validated predictions of a
   person's ability or performance. Deadline urgency is separate from effort.
-- No live Canvas integration is included. Example assignments are local fixtures with
-  future-relative deadlines. Learning preferences can be used across subjects, not only computer
+- No live Canvas integration is included. Example assignments are local course fixtures with
+  December 2026 deadlines. Learning preferences can be used across subjects, not only computer
   science.
 - AI analysis requires a separately configured local service. No hosted backend or model API key is
   included. Demo analysis is a fixed labeled fixture and does not interpret PDF content.

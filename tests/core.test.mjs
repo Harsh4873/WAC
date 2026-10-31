@@ -173,8 +173,16 @@ test('local-day arithmetic survives daylight-saving changes', () => {
     else process.env.TZ = old;
   }
 });
-test('demo assignments are future-relative and IDs are unique', () => {
-  const state = initialState();
+test('demo assignments use stable December deadlines and unique IDs', () => {
+  const state = initialState(new Date('2026-10-30T08:00:00'));
   assert.equal(new Set(state.tasks.map((t) => t.id)).size, 4);
-  assert.ok(state.tasks.every((t) => new Date(t.due) > new Date()));
+  assert.deepEqual(
+    state.tasks.map((t) => dayKey(t.due)),
+    ['2026-12-07', '2026-12-10', '2026-12-10', '2026-12-14'],
+  );
+  assert.ok(state.tasks.every((t) => new Date(t.due).getHours() === 23));
+  assert.deepEqual(
+    initialState(new Date('2026-11-20T08:00:00')).tasks.map((t) => t.due),
+    state.tasks.map((t) => t.due),
+  );
 });

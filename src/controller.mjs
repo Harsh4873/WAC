@@ -8,6 +8,8 @@ import {
   requestedDurations,
   blockDuration,
   demoTasks,
+  DEMO_REVISION,
+  refreshDemoExamples,
   demoBusy,
   addDays,
   startOfWeek,
@@ -20,7 +22,8 @@ import { validateProfile } from './profile.mjs';
 export function createController({ load, save, google = null, now = () => new Date() }) {
   let queue = Promise.resolve();
   const run = async (message) => {
-    const state = (await load()) || initialState();
+    const loaded = await load();
+    const state = loaded || initialState(now());
     if (state.version !== 1)
       throw new Error('This data version is not supported. Export your data before upgrading.');
     const find = (id) => {
@@ -31,19 +34,21 @@ export function createController({ load, save, google = null, now = () => new Da
     const fetchBusy = async () =>
       state.google.connected
         ? google.busy(now().toISOString(), addDays(now(), 31).toISOString())
-        : demoBusy(new Date(state.demoAnchor));
+        : demoBusy(now());
     const commit = async () => {
       await save(state);
       return state;
     };
     switch (message.type) {
-      case 'GET_STATE':
-        if (!(await load())) await save(state);
+      case 'GET_STATE': {
+        const refreshed = refreshDemoExamples(state);
+        if (!loaded || refreshed) await save(state);
         return {
           state,
           configured: Boolean(google?.configured()),
           extensionId: globalThis.chrome?.runtime?.id || null,
         };
+      }
       case 'GET_CONTENT_STATE':
         return {
           tasks: state.tasks.map(({ id, title, course, effort, estimateMinutes }) => ({
@@ -117,9 +122,10 @@ export function createController({ load, save, google = null, now = () => new Da
         const remove = new Set(
           state.tasks.filter((t) => t.source === 'demo' && !keep.has(t.id)).map((t) => t.id),
         );
-        state.tasks = [...state.tasks.filter((t) => !remove.has(t.id)), ...demoTasks(now())];
+        state.tasks = [...state.tasks.filter((t) => !remove.has(t.id)), ...demoTasks()];
         state.blocks = state.blocks.filter((b) => !remove.has(b.taskId));
         state.demoAnchor = now().toISOString();
+        state.demoRevision = DEMO_REVISION;
         return commit();
       }
       case 'PLAN': {

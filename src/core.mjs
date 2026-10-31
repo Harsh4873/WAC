@@ -298,46 +298,107 @@ export function validatePlan(task, proposal, blocks, busy, settings, now = new D
     throw new Error('Your estimate changed. Generate a new plan.');
   return accepted;
 }
-export function demoTasks(now = new Date()) {
-  const due = (days) => atHour(addDays(now, days), 23).toISOString();
+export const DEMO_REVISION = 'december-2026';
+const LEGACY_DEMO_OFFSETS = {
+  'literature-review': 2,
+  'neural-network-lab': 3,
+  'probability-problem-set': 3,
+  'prototype-walkthrough': 5,
+};
+export function demoTasks() {
+  const due = (day) => new Date(2026, 11, day, 23, 0, 0, 0).toISOString();
   return [
     {
+      demoKey: 'literature-review',
       title: 'Literature review',
       course: 'CSCE 671',
       type: 'reading',
       size: 24,
-      due: due(2),
+      due: due(7),
       description: 'Read two papers and prepare research notes for our HCI project.',
       estimateMinutes: 180,
     },
     {
+      demoKey: 'neural-network-lab',
       title: 'Neural network lab',
       course: 'CSCE 633',
       type: 'coding',
       size: 3,
-      due: due(3),
+      due: due(10),
       description: 'Implement the training loop, evaluate the model, and write up findings.',
       estimateMinutes: 240,
     },
     {
+      demoKey: 'probability-problem-set',
       title: 'Probability problem set',
       course: 'STAT 601',
       type: 'problems',
       size: 6,
-      due: due(3),
+      due: due(10),
       description: 'Six problems covering conditional probability and distributions.',
       estimateMinutes: 105,
     },
     {
+      demoKey: 'prototype-walkthrough',
       title: 'Prototype walkthrough',
       course: 'CSCE 671',
       type: 'writing',
       size: 500,
-      due: due(5),
+      due: due(14),
       description: 'Prepare a concise walkthrough of the workload-aware calendar.',
       estimateMinutes: 90,
     },
-  ].map((t) => ({ ...validateTask({ ...t, familiarity: 'some' }), source: 'demo' }));
+  ].map((t) => ({
+    ...validateTask({ ...t, familiarity: 'some' }),
+    source: 'demo',
+    demoKey: t.demoKey,
+    demoOriginalDue: t.due,
+  }));
+}
+export function refreshDemoExamples(state) {
+  if (state.demoRevision === DEMO_REVISION) return false;
+  const published = new Set(state.blocks.filter((b) => b.googleEventId).map((b) => b.taskId));
+  const templates = demoTasks();
+  const refreshed = new Set();
+  const anchor = new Date(state.demoAnchor);
+  const defaultFields = [
+    'title',
+    'course',
+    'type',
+    'size',
+    'description',
+    'familiarity',
+    'estimateMinutes',
+    'effort',
+  ];
+  for (const task of state.tasks) {
+    if (
+      task.source !== 'demo' ||
+      task.completed ||
+      task.analysis ||
+      task.attachment ||
+      published.has(task.id)
+    )
+      continue;
+    const template = templates.find((sample) =>
+      defaultFields.every((key) => task[key] === sample[key]),
+    );
+    if (!template) continue;
+    const originalDue =
+      task.demoOriginalDue ||
+      (Number.isFinite(anchor.getTime())
+        ? atHour(addDays(anchor, LEGACY_DEMO_OFFSETS[template.demoKey]), 23).toISOString()
+        : null);
+    // Only refresh untouched examples; a user-edited deadline must stay unchanged.
+    if (task.due !== originalDue) continue;
+    task.due = template.due;
+    task.demoKey = template.demoKey;
+    task.demoOriginalDue = template.due;
+    refreshed.add(task.id);
+  }
+  state.blocks = state.blocks.filter((b) => b.googleEventId || !refreshed.has(b.taskId));
+  state.demoRevision = DEMO_REVISION;
+  return true;
 }
 export function demoBusy(now = new Date()) {
   const events = [];
@@ -361,7 +422,7 @@ export function demoBusy(now = new Date()) {
     }
   return events;
 }
-export function initialState() {
+export function initialState(now = new Date()) {
   return {
     version: 1,
     instanceId: uid(),
@@ -371,6 +432,7 @@ export function initialState() {
     settings: { ...DEFAULT_SETTINGS },
     google: { connected: false },
     calendarEvents: [],
-    demoAnchor: new Date().toISOString(),
+    demoAnchor: now.toISOString(),
+    demoRevision: DEMO_REVISION,
   };
 }

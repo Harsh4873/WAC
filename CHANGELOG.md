@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.2 — 2026-10-30
+
+- Set course example deadlines to December 7, 10, 10, and 14, 2026.
+- Refresh untouched, unpublished older examples once, clearing their stale local work blocks while
+  preserving edited, completed, manual, and published tasks.
+- Keep sample class conflicts aligned with the current planning window and the preview's displayed
+  week.
+
 ## 0.1.1 — 2026-10-28
 
 - Prepare a maintainable source repository with architecture, setup, contribution, privacy, and
