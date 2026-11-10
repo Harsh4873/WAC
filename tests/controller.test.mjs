@@ -53,6 +53,57 @@ test('revalidates a proposal so a duplicate submission cannot overbook', async (
   assert.equal(results.filter((r) => r.status === 'fulfilled').length, 1);
   assert.equal(read().blocks.length, 2);
 });
+test('moves a local block earlier and keeps a published block where it is', async () => {
+  const { run, read, write } = fixture();
+  const s = read();
+  s.blocks = [
+    {
+      id: 'move-me',
+      taskId: s.tasks[0].id,
+      start: '2026-10-28T13:00:00',
+      end: '2026-10-28T14:00:00',
+    },
+  ];
+  write(s);
+  await run({ type: 'MOVE_EARLIER', id: 'move-me' });
+  assert.equal(read().blocks[0].start, new Date('2026-10-28T12:45:00').toISOString());
+  const published = read();
+  published.blocks[0].googleEventId = 'event';
+  write(published);
+  await assert.rejects(run({ type: 'MOVE_EARLIER', id: 'move-me' }), /Google Calendar/);
+});
+test('publishes with an assignment reminder count when one is set', async () => {
+  let seen = null;
+  const google = {
+    busy: async () => [],
+    recoverBlock: async () => null,
+    createBlock: async (_block, _task, _instanceId, reminders) => {
+      seen = reminders;
+      return {
+        id: 'event',
+        summary: 'WAC report',
+        start: { dateTime: '2026-10-29T15:00:00Z' },
+        end: { dateTime: '2026-10-29T16:00:00Z' },
+      };
+    },
+  };
+  const { run, read, write } = fixture(google);
+  const s = read();
+  s.google.connected = true;
+  s.tasks[0].reminderCount = 3;
+  s.settings.reminderCount = 1;
+  s.blocks = [
+    {
+      id: 'remind',
+      taskId: s.tasks[0].id,
+      start: '2026-10-29T15:00:00Z',
+      end: '2026-10-29T16:00:00Z',
+    },
+  ];
+  write(s);
+  await run({ type: 'PUBLISH', ids: ['remind'] });
+  assert.equal(seen, 3);
+});
 test('demo mode cannot publish or fake a successful Google connection', async () => {
   const { run } = fixture();
   await assert.rejects(run({ type: 'CONNECT' }), /Chrome extension/);

@@ -5,6 +5,8 @@ import {
   validateTask,
   DEFAULT_SETTINGS,
   blockDuration,
+  dayKey,
+  overlaps,
   initialState,
 } from '../src/core.mjs';
 import { createController } from '../src/controller.mjs';
@@ -45,13 +47,15 @@ test('custom blocks still respect real availability, breaks and daily limits', (
     customDurations: [25, 45, 50],
   });
   assert.deepEqual(result.blocks.map(blockDuration), [25, 45, 50]);
-  assert.equal(
-    new Date(result.blocks[0].start).getTime(),
-    new Date('2026-10-28T11:15:00').getTime(),
-  );
-  assert.ok(
-    new Date(result.blocks[1].start).getDate() > new Date(result.blocks[0].start).getDate(),
-  );
+  const onBusyDay = result.blocks.find((block) => dayKey(block.start) === '2026-10-28');
+  assert.equal(new Date(onBusyDay.start).getTime(), new Date('2026-10-28T11:15:00').getTime());
+  assert.ok(result.blocks.every((block) => !busy.some((event) => overlaps(block, event, 15))));
+  for (const key of new Set(result.blocks.map((block) => dayKey(block.start)))) {
+    const total = result.blocks
+      .filter((block) => dayKey(block.start) === key)
+      .reduce((sum, block) => sum + blockDuration(block), 0);
+    assert.ok(total <= 60);
+  }
 });
 test('existing data migrates without losing tasks or Google connection, and onboarding is remembered', async () => {
   let state = initialState();

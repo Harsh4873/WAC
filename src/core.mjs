@@ -32,6 +32,23 @@ export const uid = () => crypto.randomUUID();
 export const round15 = (n) => Math.max(15, Math.ceil(n / 15) * 15);
 export const tierFor = (n) => (n <= 60 ? 'low' : n <= 180 ? 'medium' : 'high');
 export const tierTag = (tier) => ({ low: '+', medium: '++', high: '+++' })[tier] || '+';
+export const tierLabel = (tier) => ({ low: 'Low', medium: 'Medium', high: 'High' })[tier] || 'Low';
+export const SUBMISSION_TYPES = Object.freeze([
+  { id: 'online_upload', label: 'File upload' },
+  { id: 'online_text_entry', label: 'Text entry' },
+  { id: 'online_quiz', label: 'Quiz' },
+  { id: 'online_url', label: 'Website URL' },
+  { id: 'discussion_topic', label: 'Discussion' },
+  { id: 'on_paper', label: 'On paper' },
+  { id: 'none', label: 'No submission' },
+]);
+export const submissionLabel = (id) => SUBMISSION_TYPES.find((item) => item.id === id)?.label || '';
+export function dateFromKey(key) {
+  const [year, month, day] = String(key || '')
+    .split('-')
+    .map(Number);
+  return new Date(year, (month || 1) - 1, day || 1);
+}
 export const formatMinutes = (n) =>
   n < 60 ? `${n}m` : `${Math.floor(n / 60)}h${n % 60 ? ` ${n % 60}m` : ''}`;
 export const dayKey = (date) => {
@@ -84,7 +101,7 @@ export function estimateTask({
     minutes,
     low: round15(minutes * 0.8),
     high: Math.min(2880, round15(minutes * 1.3)),
-    reason: `${quantity} ${rule.unit} × ${rule.rate} min + ${rule.setup} min preparation${research ? ' + 30 min research' : ''}; familiarity × ${factor}${personal !== 1 ? `; your pace/confidence × ${personal}` : ''}.`,
+    reason: `${quantity} ${quantity === 1 && rule.unit.endsWith('s') ? rule.unit.slice(0, -1) : rule.unit} × ${rule.rate} min, plus ${rule.setup} min to get started${research ? ', plus 30 min for research' : ''}${factor === 1 ? '' : `; familiarity × ${factor}`}${personal === 1 ? '' : `; your pace × ${personal}`}.`,
     source: 'Rule-based estimate · editable, not a measured prediction',
   };
 }
@@ -140,6 +157,9 @@ export function validateTask(input, previous = null, profile = null) {
     String(input.course || 'Personal')
       .trim()
       .slice(0, 50) || 'Personal';
+  const pointsPossible = readPoints(input, previous);
+  const submissionTypes = readSubmissionTypes(input, previous);
+  const reminderCount = readReminderCount(input, previous);
   return {
     ...previous,
     id: previous?.id || uid(),
@@ -153,6 +173,9 @@ export function validateTask(input, previous = null, profile = null) {
     familiarity,
     estimateMinutes: minutes,
     effort,
+    pointsPossible,
+    submissionTypes,
+    reminderCount,
     estimate,
     analysis,
     attachment: attachmentMetadata(
@@ -162,6 +185,38 @@ export function validateTask(input, previous = null, profile = null) {
     completed: previous?.completed || false,
     createdAt: previous?.createdAt || new Date().toISOString(),
   };
+}
+function readPoints(input, previous) {
+  if (input.pointsPossible === undefined && input.points_possible === undefined)
+    return previous?.pointsPossible ?? null;
+  const raw = input.pointsPossible ?? input.points_possible;
+  if (raw == null || raw === '') return null;
+  const points = Number(raw);
+  if (!Number.isFinite(points) || points < 0 || points > 100000)
+    throw new Error('Enter points between 0 and 100,000, or leave points blank.');
+  return Math.round(points * 100) / 100;
+}
+function readSubmissionTypes(input, previous) {
+  if (input.submissionType === undefined && input.submissionTypes === undefined)
+    return [...(previous?.submissionTypes || [])];
+  const raw = input.submissionType !== undefined ? input.submissionType : input.submissionTypes;
+  const id = Array.isArray(raw) ? raw[0] : raw;
+  if (id == null || id === '') return [];
+  if (!SUBMISSION_TYPES.some((item) => item.id === id))
+    throw new Error('Choose a submission type from the list.');
+  return [id];
+}
+function readReminderCount(input, previous) {
+  const raw = input.taskReminderCount !== undefined ? input.taskReminderCount : input.reminderCount;
+  if (raw === undefined) return previous?.reminderCount ?? null;
+  if (raw == null || raw === '' || raw === 'default') return null;
+  const count = Number(raw);
+  if (!Number.isInteger(count) || count < 0 || count > 5)
+    throw new Error('Choose 0 to 5 reminders for this assignment, or use your default.');
+  return count;
+}
+export function taskReminderCount(task, settings) {
+  return Number.isInteger(task?.reminderCount) ? task.reminderCount : settings.reminderCount;
 }
 export function validateSettings(input, current = DEFAULT_SETTINGS) {
   const value = { ...current };
@@ -179,7 +234,18 @@ export function validateSettings(input, current = DEFAULT_SETTINGS) {
   ]) {
     value[field] = Number(value[field]);
     if (!Number.isInteger(value[field]) || value[field] < min || value[field] > max)
-      throw new Error(`Invalid setting: ${field}.`);
+      throw new Error(
+        `Check ${
+          {
+            workStart: 'Workday starts',
+            workEnd: 'Workday ends',
+            dailyLimit: 'Daily WAC work limit',
+            blockMinutes: 'Work block length',
+            breakMinutes: 'Space between plans',
+            reminderCount: 'Google reminders per block',
+          }[field] || field
+        }.`,
+      );
   }
   if (value.workEnd <= value.workStart) throw new Error('Your workday must end after it starts.');
   if (value.dailyLimit < value.blockMinutes)
@@ -228,12 +294,20 @@ export function planTask(task, blocks, busy, settings, now = new Date(), inputOp
   const earliest = new Date(Math.ceil((now.getTime() + 15 * 60000) / 900000) * 900000);
   const horizon = addDays(now, 30);
   const last = Math.min(new Date(task.due).getTime(), horizon.getTime());
-  for (
-    let day = atHour(now, 0);
-    day.getTime() < last && next < lengths.length;
-    day = addDays(day, 1)
-  ) {
+  const days = [];
+  for (let day = atHour(now, 0); day.getTime() < last; day = addDays(day, 1)) {
     if (!settings.weekends && [0, 6].includes(day.getDay())) continue;
+    days.push(new Date(day));
+  }
+  const dueKey = dayKey(task.due);
+  // Sit the work on the open days just before it is due. Tomorrow is a last resort
+  // when the deadline is close, and the due day is used only if earlier days cannot hold it.
+  const ordered = [
+    ...days.filter((day) => dayKey(day) !== dueKey).reverse(),
+    ...days.filter((day) => dayKey(day) === dueKey),
+  ];
+  for (const day of ordered) {
+    if (next >= lengths.length) break;
     let dailyUsed = blocks
       .filter((b) => dayKey(b.start) === dayKey(day))
       .reduce((s, b) => s + blockDuration(b), 0);
@@ -286,7 +360,7 @@ export function validatePlan(task, proposal, blocks, busy, settings, now = new D
     if (
       [...blocks, ...busy, ...accepted].some((b) => overlaps(candidate, b, settings.breakMinutes))
     )
-      throw new Error('This time is no longer free. Find a new time to refresh your plan.');
+      throw new Error('That time is already taken. The block stayed where it was.');
     const daily = [...blocks, ...accepted]
       .filter((b) => dayKey(b.start) === dayKey(start))
       .reduce((n, b) => n + blockDuration(b), duration);
@@ -298,7 +372,70 @@ export function validatePlan(task, proposal, blocks, busy, settings, now = new D
     throw new Error('Your estimate changed. Generate a new plan.');
   return accepted;
 }
-export const DEMO_REVISION = 'december-2026';
+export function collisionDays(tasks, dailyLimit) {
+  const groups = new Map();
+  for (const task of tasks) {
+    if (task.completed) continue;
+    const key = dayKey(task.due);
+    const group = groups.get(key) || [];
+    group.push(task);
+    groups.set(key, group);
+  }
+  return [...groups.entries()]
+    .map(([day, items]) => ({
+      day,
+      tasks: items,
+      minutes: items.reduce((sum, task) => sum + task.estimateMinutes, 0),
+    }))
+    .filter((group) => group.tasks.length > 1 && group.minutes > dailyLimit)
+    .sort((a, b) => a.day.localeCompare(b.day));
+}
+export function relocateBlock(block, startIso, task, blocks, busy, settings, now = new Date()) {
+  if (block.googleEventId)
+    throw new Error('This block is on Google Calendar. Move it there, then refresh WAC.');
+  const duration = blockDuration(block);
+  const start = new Date(startIso);
+  if (!Number.isFinite(start.getTime())) throw new Error('Choose a valid time.');
+  const candidate = {
+    taskId: task.id,
+    start: start.toISOString(),
+    end: new Date(start.getTime() + duration * 60000).toISOString(),
+  };
+  const others = blocks.filter((item) => item.id !== block.id);
+  const accepted = validatePlan(
+    task,
+    [candidate],
+    others,
+    busy,
+    { ...settings, blockMinutes: Math.max(settings.blockMinutes, duration) },
+    now,
+  );
+  return accepted[0];
+}
+export function earlierSlot(block, task, blocks, busy, settings, now = new Date()) {
+  if (block.googleEventId)
+    throw new Error('This block is on Google Calendar. Move it there, then refresh WAC.');
+  const duration = blockDuration(block);
+  let cursor = new Date(new Date(block.start).getTime() - 15 * 60000);
+  const limit = addDays(new Date(block.start), -21);
+  const earliest = new Date(now.getTime() + 15 * 60000);
+  while (cursor > limit && cursor > earliest) {
+    const minutes = cursor.getHours() * 60 + cursor.getMinutes();
+    const weekend = !settings.weekends && [0, 6].includes(cursor.getDay());
+    const insideHours =
+      minutes >= settings.workStart * 60 && minutes + duration <= settings.workEnd * 60;
+    if (!weekend && insideHours) {
+      try {
+        return relocateBlock(block, cursor.toISOString(), task, blocks, busy, settings, now);
+      } catch {
+        // Keep walking back until a free work-hour slot appears.
+      }
+    }
+    cursor = new Date(cursor.getTime() - 15 * 60000);
+  }
+  throw new Error('No earlier open time before this block, inside your work hours.');
+}
+export const DEMO_REVISION = 'phase6-canvas';
 const LEGACY_DEMO_OFFSETS = {
   'literature-review': 2,
   'neural-network-lab': 3,
@@ -315,6 +452,8 @@ export function demoTasks() {
       type: 'reading',
       size: 24,
       due: due(7),
+      pointsPossible: 100,
+      submissionTypes: ['online_text_entry'],
       description: 'Read two papers and prepare research notes for our HCI project.',
       estimateMinutes: 180,
     },
@@ -325,6 +464,8 @@ export function demoTasks() {
       type: 'coding',
       size: 3,
       due: due(10),
+      pointsPossible: 50,
+      submissionTypes: ['online_upload'],
       description: 'Implement the training loop, evaluate the model, and write up findings.',
       estimateMinutes: 240,
     },
@@ -335,6 +476,8 @@ export function demoTasks() {
       type: 'problems',
       size: 6,
       due: due(10),
+      pointsPossible: 40,
+      submissionTypes: ['online_quiz'],
       description: 'Six problems covering conditional probability and distributions.',
       estimateMinutes: 105,
     },
@@ -345,6 +488,8 @@ export function demoTasks() {
       type: 'writing',
       size: 500,
       due: due(14),
+      pointsPossible: 25,
+      submissionTypes: ['online_upload'],
       description: 'Prepare a concise walkthrough of the workload-aware calendar.',
       estimateMinutes: 90,
     },
@@ -394,6 +539,9 @@ export function refreshDemoExamples(state) {
     task.due = template.due;
     task.demoKey = template.demoKey;
     task.demoOriginalDue = template.due;
+    task.pointsPossible = template.pointsPossible;
+    task.submissionTypes = [...template.submissionTypes];
+    task.reminderCount = template.reminderCount ?? null;
     refreshed.add(task.id);
   }
   state.blocks = state.blocks.filter((b) => b.googleEventId || !refreshed.has(b.taskId));

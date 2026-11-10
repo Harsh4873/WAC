@@ -16,6 +16,10 @@ import {
   overlaps,
   plannedMinutes,
   uid,
+  collisionDays,
+  relocateBlock,
+  earlierSlot,
+  taskReminderCount,
 } from './core.mjs';
 import { validateProfile } from './profile.mjs';
 
@@ -66,6 +70,11 @@ export function createController({ load, save, google = null, now = () => new Da
               googleSummary,
             })),
           visualMode: state.settings.visualMode,
+          collisions: collisionDays(state.tasks, state.settings.dailyLimit).map((group) => ({
+            day: group.day,
+            count: group.tasks.length,
+            minutes: group.minutes,
+          })),
         };
       case 'SAVE_TASK': {
         const previous = message.id ? find(message.id) : null;
@@ -171,6 +180,22 @@ export function createController({ load, save, google = null, now = () => new Da
         find(message.id);
         state.blocks = state.blocks.filter((b) => b.taskId !== message.id || b.googleEventId);
         return commit();
+      case 'MOVE_BLOCK':
+      case 'MOVE_EARLIER': {
+        const block = state.blocks.find((item) => item.id === message.id);
+        if (!block) throw new Error('That work block is no longer here.');
+        const task = find(block.taskId);
+        if (task.completed)
+          throw new Error('This assignment is complete. Clear its work blocks first.');
+        const busy = await fetchBusy();
+        const moved =
+          message.type === 'MOVE_EARLIER'
+            ? earlierSlot(block, task, state.blocks, busy, state.settings, now())
+            : relocateBlock(block, message.start, task, state.blocks, busy, state.settings, now());
+        block.start = moved.start;
+        block.end = moved.end;
+        return commit();
+      }
       case 'CONNECT': {
         if (!google)
           throw new Error('Load this folder as a Chrome extension to connect Google Calendar.');
@@ -249,11 +274,12 @@ export function createController({ load, save, google = null, now = () => new Da
             );
         }
         for (const block of pending) {
+          const task = find(block.taskId);
           const event = await google.createBlock(
             block,
-            find(block.taskId),
+            task,
             state.instanceId,
-            state.settings.reminderCount,
+            taskReminderCount(task, state.settings),
           );
           block.googleEventId = event.id;
           block.googleSummary = event.summary;

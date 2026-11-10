@@ -13,6 +13,9 @@ import {
   dayKey,
   initialState,
   tierFor,
+  collisionDays,
+  earlierSlot,
+  relocateBlock,
 } from '../src/core.mjs';
 
 const settings = { ...DEFAULT_SETTINGS };
@@ -46,8 +49,19 @@ test('validates user input and keeps workload separate from urgency', () => {
   assert.equal(task({ estimateMinutes: 30, effort: 'high' }).effort, 'high');
   assert.equal(tierFor(180), 'medium');
 });
+test('plans the open days just before a distant deadline', () => {
+  const result = planTask(
+    task({ due: '2026-12-10T23:00:00', estimateMinutes: 180 }),
+    [],
+    [],
+    settings,
+    new Date('2026-11-09T17:00:00'),
+  );
+  assert.equal(result.unscheduledMinutes, 0);
+  assert.ok(result.blocks.every((block) => dayKey(block.start) === '2026-12-09'));
+});
 test('finds future work blocks, avoids appointments and respects breaks', () => {
-  const busy = [{ start: '2026-10-28T09:00:00', end: '2026-10-28T11:00:00' }];
+  const busy = [{ start: '2026-10-29T09:00:00', end: '2026-10-29T11:00:00' }];
   const result = planTask(task(), [], busy, settings, now);
   assert.equal(result.unscheduledMinutes, 0);
   assert.equal(
@@ -59,7 +73,7 @@ test('finds future work blocks, avoids appointments and respects breaks', () => 
     assert.ok(new Date(b.end) <= new Date(task().due));
     assert.ok(!busy.some((e) => overlaps(b, e, settings.breakMinutes)));
   }
-  assert.equal(result.blocks[0].start, new Date('2026-10-28T11:15:00').toISOString());
+  assert.equal(result.blocks[0].start, new Date('2026-10-29T11:15:00').toISOString());
   assert.doesNotThrow(() => validatePlan(task(), result.blocks, [], busy, settings, now));
 });
 test('deducts existing planned time and applies daily work cap', () => {
@@ -112,7 +126,7 @@ test('rejects stale plans, over-allocation, outside-hours work and gaps', () => 
   const result = planTask(t, [], [], settings, now);
   assert.throws(
     () => validatePlan(t, result.blocks, [], [result.blocks[0]], settings, now),
-    /no longer free/,
+    /already taken/,
   );
   assert.throws(
     () => validatePlan({ ...t, estimateMinutes: 30 }, result.blocks, [], [], settings, now),
@@ -141,7 +155,7 @@ test('rejects stale plans, over-allocation, outside-hours work and gaps', () => 
         settings,
         now,
       ),
-    /no longer free/,
+    /already taken/,
   );
 });
 test('settings reject reversed hours and invalid reminder counts', () => {
@@ -172,6 +186,59 @@ test('local-day arithmetic survives daylight-saving changes', () => {
     if (old === undefined) delete process.env.TZ;
     else process.env.TZ = old;
   }
+});
+test('demo assignments carry Canvas fields and flag the December 10 collision', () => {
+  const state = initialState(new Date('2026-11-09T09:00:00'));
+  assert.equal(state.tasks[0].pointsPossible, 100);
+  assert.deepEqual(state.tasks[0].submissionTypes, ['online_text_entry']);
+  assert.equal(state.tasks[0].reminderCount, null);
+  assert.equal(task({ pointsPossible: 12.5 }).pointsPossible, 12.5);
+  assert.equal(task({ taskReminderCount: '3' }).reminderCount, 3);
+  assert.equal(task({ taskReminderCount: 'default' }).reminderCount, null);
+  assert.throws(() => task({ pointsPossible: -1 }));
+  assert.throws(() => task({ submissionType: 'carrier-pigeon' }));
+  const hits = collisionDays(state.tasks, state.settings.dailyLimit);
+  assert.equal(hits.length, 1);
+  assert.equal(hits[0].day, '2026-12-10');
+  assert.equal(hits[0].tasks.length, 2);
+  assert.ok(hits[0].minutes > state.settings.dailyLimit);
+});
+test('moves an unpublished block earlier and rejects busy or published times', () => {
+  const t = task();
+  const block = {
+    id: 'b',
+    taskId: t.id,
+    start: '2026-10-28T13:00:00',
+    end: '2026-10-28T14:00:00',
+  };
+  const moved = earlierSlot(block, t, [block], [], settings, now);
+  assert.equal(moved.start, new Date('2026-10-28T12:45:00').toISOString());
+  assert.throws(
+    () =>
+      relocateBlock(
+        block,
+        '2026-10-28T09:30:00',
+        t,
+        [block],
+        [{ start: '2026-10-28T09:00:00', end: '2026-10-28T12:00:00' }],
+        settings,
+        now,
+      ),
+    /already taken/,
+  );
+  assert.throws(
+    () =>
+      relocateBlock(
+        { ...block, googleEventId: 'event' },
+        '2026-10-28T15:00:00',
+        t,
+        [block],
+        [],
+        settings,
+        now,
+      ),
+    /Google Calendar/,
+  );
 });
 test('demo assignments use stable December deadlines and unique IDs', () => {
   const state = initialState(new Date('2026-10-30T08:00:00'));

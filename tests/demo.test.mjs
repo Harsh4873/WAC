@@ -5,8 +5,10 @@ import {
   addDays,
   atHour,
   dayKey,
+  demoBusy,
   DEMO_REVISION,
   initialState,
+  overlaps,
   validateTask,
 } from '../src/core.mjs';
 
@@ -144,6 +146,8 @@ test('planning a December example avoids current sample classes even with an old
   const proposal = await run({ type: 'PLAN', id: state.tasks[0].id });
   assert.equal(proposal.unscheduledMinutes, 0);
   assert.equal(proposal.realCalendar, false);
-  assert.equal(proposal.blocks[0].start, new Date('2026-11-30T11:30:00').toISOString());
+  assert.equal(proposal.blocks[0].start, new Date('2026-12-06T09:00:00').toISOString());
+  const classes = demoBusy(new Date('2026-11-30T08:00:00'));
+  assert.ok(proposal.blocks.every((block) => !classes.some((event) => overlaps(block, event, 15))));
   assert.ok(proposal.blocks.every((b) => new Date(b.end) < new Date(state.tasks[0].due)));
 });
