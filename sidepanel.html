@@ -45,6 +45,7 @@
           <div class="week-navigation">
             <button class="icon-button" id="prev-week" aria-label="Previous week">‹</button
             ><button class="small-button" id="today-button">Today</button
+            ><button class="small-button" id="collision-week" type="button" hidden>Busy week</button
             ><button class="icon-button" id="next-week" aria-label="Next week">›</button>
           </div>
         </div>
@@ -56,7 +57,7 @@
         <div id="calendar" class="week-calendar"></div>
         <div class="calendar-footer">
           <span id="calendar-note">Sample classes help make the demo realistic.</span
-          ><span>Time for life, too. <span aria-hidden="true">↗</span></span>
+          ><span id="calendar-hint">Time for life, too. <span aria-hidden="true">↗</span></span>
         </div>
       </section>
       <aside class="task-pane" aria-label="Workload planner">
@@ -67,12 +68,12 @@
           </div>
           <button class="button primary" id="new-task">+ Add task</button>
         </section>
+        <div id="workload-notice" class="notice" hidden></div>
         <section class="summary" aria-label="Workload summary">
           <div><strong id="total-effort">0h</strong><span>estimated effort</span></div>
           <div><strong id="planned-effort">0h</strong><span>time planned</span></div>
           <div><strong id="due-count">0</strong><span>due in 7 days</span></div>
         </section>
-        <div id="workload-notice" class="notice" hidden></div>
         <section class="display-controls" aria-label="Display options">
           <div><strong>See the effort</strong><span>One week. Three perspectives.</span></div>
           <div class="segmented" id="display-modes">
@@ -113,7 +114,7 @@
         ></section>
         <section class="google-card">
           <div class="google-card-title">
-            <span class="google-icon" aria-hidden="true">31</span>
+            <span class="google-icon" aria-hidden="true"></span>
             <div>
               <strong>Bring your calendar along.</strong>
               <p id="google-description">Try the demo, then connect your real week.</p>
@@ -149,6 +150,7 @@
         <p class="muted profile-intro">
           A little background helps tailor future task estimates. These questions work for any
           subject or occupation. Every answer is optional, and you can update it in Settings.
+          Example assignments are already loaded. Skipping is enough to see the week.
         </p>
         <label
           >Study or work area<input
@@ -201,7 +203,6 @@
             min="5"
             max="240"
             value="45"
-            required
           /><span class="field-help"
             >A starting preference only. You can choose different lengths for each task.</span
           ></label
@@ -217,6 +218,30 @@
         </div>
       </form>
     </dialog>
+    <div
+      id="event-popover"
+      class="event-popover"
+      role="dialog"
+      aria-labelledby="popover-title"
+      hidden
+    >
+      <div class="popover-heading">
+        <p id="popover-course" class="eyebrow"></p>
+        <button type="button" class="icon-button" id="close-popover" aria-label="Close estimate">
+          ×
+        </button>
+      </div>
+      <h3 id="popover-title"></h3>
+      <p id="popover-estimate" class="popover-estimate"></p>
+      <p id="popover-meta" class="muted"></p>
+      <div id="popover-effort" class="effort-chips" aria-label="Override estimate"></div>
+      <p id="popover-hint" class="field-help"></p>
+      <div class="popover-actions">
+        <button type="button" class="button secondary" id="popover-edit">Edit details</button>
+        <button type="button" class="button primary" id="popover-plan">Find time</button>
+        <button type="button" class="text-button" id="popover-earlier" hidden>Move earlier</button>
+      </div>
+    </div>
     <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
     <dialog id="task-dialog" aria-labelledby="task-dialog-title">
       <form id="task-form">
@@ -248,6 +273,41 @@
               <option value="Personal"></option></datalist></label
           ><label>Deadline<input name="due" id="task-due" type="datetime-local" required /></label>
         </div>
+        <div class="form-row">
+          <label
+            >Points<input
+              name="pointsPossible"
+              id="task-points"
+              type="number"
+              min="0"
+              max="100000"
+              step="0.01"
+              placeholder="Optional"
+          /></label>
+          <label
+            >Submission type<select name="submissionType" id="task-submission">
+              <option value="">Not set</option>
+              <option value="online_upload">File upload</option>
+              <option value="online_text_entry">Text entry</option>
+              <option value="online_quiz">Quiz</option>
+              <option value="online_url">Website URL</option>
+              <option value="discussion_topic">Discussion</option>
+              <option value="on_paper">On paper</option>
+              <option value="none">No submission</option>
+            </select></label
+          >
+        </div>
+        <label
+          >Reminders for this assignment<select name="taskReminderCount" id="task-reminders">
+            <option value="default">Use my default</option>
+            <option value="0">None</option>
+            <option value="1">1 · 10 min before</option>
+            <option value="2">2 · 10 & 30 min</option>
+            <option value="3">3 · 10, 30 & 60 min</option>
+            <option value="4">4 · also 1 day before</option>
+            <option value="5">5 · also 2 days before</option></select
+          ><span class="field-help">Uses the same times as Settings.</span></label
+        >
         <section class="assignment-import">
           <label
             >Attach assignment instructions<input
@@ -458,7 +518,12 @@
               <option value="360">6 hours</option>
             </select></label
           ><label
-            >Work block length<input name="blockMinutes" type="number" min="5" max="240" required
+            >Work block length (minutes)<input
+              name="blockMinutes"
+              type="number"
+              min="5"
+              max="240"
+              required
           /></label>
         </div>
         <div class="form-row">
@@ -484,8 +549,10 @@
           ><input name="weekends" type="checkbox" /> Include weekends when finding time</label
         >
         <p class="fine-print">
-          Daily limit counts WAC work blocks. Busy-time checks cover your primary Google Calendar
-          only. Settings affect new plans and new Google events.
+          Daily limit counts WAC work blocks, and it also marks a day whose assignment estimates
+          exceed it. Busy-time checks cover your primary Google Calendar only. Settings affect new
+          plans and new Google events. An assignment can use its own reminder count instead of this
+          default.
         </p>
         <details id="calendar-guide">
           <summary>How to connect Google Calendar</summary>

@@ -16,6 +16,10 @@ import {
   addDays,
   atHour,
   demoBusy,
+  collisionDays,
+  dateFromKey,
+  submissionLabel,
+  tierLabel,
 } from './core.mjs';
 
 const $ = (selector) => document.querySelector(selector);
@@ -34,6 +38,10 @@ const longDate = (date) =>
 let state,
   configured = false,
   week = startOfWeek(new Date());
+let weekFocused = false,
+  popover = null,
+  suppressClick = false,
+  drag = null;
 let editId = null,
   proposal = null,
   publishingIds = [],
@@ -86,6 +94,13 @@ async function work(button, action, errorSelector) {
     }
   }
 }
+function canvasMeta(task) {
+  const bits = [
+    task.pointsPossible != null ? `${task.pointsPossible} pts` : '',
+    submissionLabel(task.submissionTypes?.[0]),
+  ].filter(Boolean);
+  return bits.length ? `<span class="dot"></span><span>${escape(bits.join(' · '))}</span>` : '';
+}
 function dueText(task) {
   const hours = (new Date(task.due) - new Date()) / 3600000;
   if (task.completed) return '<span class="due-label">Complete</span>';
@@ -99,10 +114,10 @@ function renderTask(task) {
   const hasPublished = state.blocks.some((b) => b.taskId === task.id && b.googleEventId);
   return `<article class="task-card ${task.completed ? 'completed' : ''}" style="--course-color:${escape(task.color)}">
     <div class="task-top"><span class="course-label">${escape(task.course)}</span>${dueText(task)}</div>
-    <div class="task-heading"><button class="complete-button" data-action="complete" data-id="${task.id}" aria-pressed="${task.completed}" aria-label="${task.completed ? 'Mark incomplete' : 'Complete'}: ${escape(task.title)}">${task.completed ? '✓' : ''}</button><h3>${escape(task.title)}${mode !== 'off' ? `<span class="effort-badge ${task.effort}" title="${task.effort} effort">${tierTag(task.effort)} ${task.effort}</span>` : ''}</h3></div>
-    <div class="task-meta"><span>${formatMinutes(task.estimateMinutes)} ${task.analysis ? (task.analysis.estimate.minutes !== task.estimateMinutes ? 'your estimate' : task.analysis.provider === 'demo' ? 'demo estimate' : 'AI estimate') : 'estimated'}</span><span class="dot"></span><span>${planned ? `${formatMinutes(planned)} planned` : 'Not planned yet'}</span></div>
+    <div class="task-heading"><button class="complete-button" data-action="complete" data-id="${task.id}" aria-pressed="${task.completed}" aria-label="${task.completed ? 'Mark incomplete' : 'Complete'}: ${escape(task.title)}">${task.completed ? '<span>✓</span>' : ''}</button><h3>${escape(task.title)}${mode !== 'off' ? `<span class="effort-badge ${task.effort}" title="${tierLabel(task.effort)} effort">${tierTag(task.effort)} ${tierLabel(task.effort)}</span>` : ''}</h3></div>
+    <div class="task-meta"><span>${formatMinutes(task.estimateMinutes)} ${task.analysis ? (task.analysis.estimate.minutes !== task.estimateMinutes ? 'your estimate' : task.analysis.provider === 'demo' ? 'demo estimate' : 'AI estimate') : 'estimated'}</span><span class="dot"></span><span>${planned ? `${formatMinutes(planned)} planned` : 'Not planned yet'}</span>${canvasMeta(task)}</div>
     ${task.analysis ? `<p class="task-analysis-note">${task.analysis.provider === 'demo' ? 'Demo draft · no AI call' : `Complexity: ${escape(task.analysis.complexity)}`} · suggested range ${formatMinutes(task.analysis.estimate.lowMinutes)}–${formatMinutes(task.analysis.estimate.highMinutes)}</p>` : ''}
-    ${task.attachment ? `<p class="task-attachment">Attachment: ${escape(task.attachment.name)} · file details only</p>` : ''}
+    ${task.attachment ? `<p class="task-attachment">Attachment: ${escape(task.attachment.name)} · name only, not the file</p>` : ''}
     ${planned ? `<div class="progress-track" aria-label="${Math.min(100, Math.round((planned / task.estimateMinutes) * 100))}% planned"><span style="width:${Math.min(100, (planned / task.estimateMinutes) * 100)}%"></span></div>` : ''}
     <div class="task-bottom"><div class="effort-chips" aria-label="Override effort for ${escape(task.title)}">${['low', 'medium', 'high'].map((t) => `<button data-action="effort" data-id="${task.id}" data-effort="${t}" aria-label="${t} effort: ${escape(task.title)}" aria-pressed="${task.effort === t}">${tierTag(t)}</button>`).join('')}</div><button class="task-edit" data-action="edit" data-id="${task.id}" title="Edit assignment" aria-label="Edit ${escape(task.title)}">Edit</button><button class="task-delete" data-action="delete" data-id="${task.id}" title="${hasPublished ? 'Delete published events in Calendar and refresh first' : 'Remove assignment'}" aria-label="Remove ${escape(task.title)}">×</button><button class="plan-button" data-action="plan" data-id="${task.id}" ${task.completed || planned >= task.estimateMinutes ? 'disabled' : ''}>${planned >= task.estimateMinutes ? '✓ Planned' : 'Find time ↗'}</button></div>
   </article>`;
@@ -131,28 +146,35 @@ function render() {
   $('#due-count').textContent = dueSoon.length;
   $('#task-count').textContent = active.length;
   $('#block-count').textContent = state.blocks.length;
-  const clusters = new Map();
-  for (const task of dueSoon) {
-    const key = dayKey(task.due);
-    const group = clusters.get(key) || [];
-    group.push(task);
-    clusters.set(key, group);
-  }
-  const collision = [...clusters.values()]
-    .sort(
-      (a, b) =>
-        b.reduce((n, t) => n + t.estimateMinutes, 0) - a.reduce((n, t) => n + t.estimateMinutes, 0),
-    )
-    .find(
-      (g) =>
-        g.length > 1 && g.reduce((n, t) => n + t.estimateMinutes, 0) > state.settings.dailyLimit,
+  if (!weekFocused) {
+    weekFocused = true;
+    const thisWeek = startOfWeek(now);
+    const visible = state.tasks.some(
+      (task) => !task.completed && startOfWeek(new Date(task.due)).getTime() === thisWeek.getTime(),
     );
+    const upcoming = state.tasks
+      .filter((task) => !task.completed && new Date(task.due) >= thisWeek)
+      .sort((a, b) => new Date(a.due) - new Date(b.due))[0];
+    if (!visible && upcoming) week = startOfWeek(new Date(upcoming.due));
+  }
+  const collisions = collisionDays(state.tasks, state.settings.dailyLimit);
+  const nextCollision = collisions[0];
   const overdue = active.filter((t) => new Date(t.due) < now).length;
-  $('#workload-notice').hidden = !collision && !overdue;
-  if (collision)
+  $('#workload-notice').hidden = !nextCollision && !overdue;
+  if (nextCollision) {
+    const when = dateFromKey(nextCollision.day);
+    const unplanned = nextCollision.tasks.some(
+      (task) => plannedMinutes(task.id, state.blocks) < task.estimateMinutes,
+    );
+    const advice = unplanned
+      ? 'Use Find time on each one. Work is placed on the open days before the deadline.'
+      : isExtension
+        ? 'Use Earlier on a work block if you want it sooner.'
+        : 'Drag a work block if you want it sooner.';
+    const showWeek = !isExtension && startOfWeek(when).getTime() !== week.getTime();
     $('#workload-notice').innerHTML =
-      `<strong>A busy ${escape(new Date(collision[0].due).toLocaleDateString('en-US', { weekday: 'long' }))} ahead.</strong>${collision.length} deadlines, ${formatMinutes(collision.reduce((n, t) => n + t.estimateMinutes, 0))} total effort. Spread some work across earlier days.`;
-  else if (overdue)
+      `<strong>A busy ${escape(when.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' }))}.</strong> ${nextCollision.tasks.length} deadlines, ${formatMinutes(nextCollision.minutes)} estimated effort on the same day. ${advice}${showWeek ? ` <button type="button" class="text-button" data-action="show-day" data-day="${escape(nextCollision.day)}">Show that week</button>` : ''}`;
+  } else if (overdue)
     $('#workload-notice').textContent =
       `${overdue} overdue assignment${overdue > 1 ? 's' : ''}. Update the deadline before finding new work time.`;
   const sorted = [...state.tasks].sort(
@@ -167,7 +189,8 @@ function render() {
         .map((block) => {
           const task = state.tasks.find((t) => t.id === block.taskId);
           const link = safeGoogleLink(block.htmlLink);
-          return `<article class="plan-item"><div class="plan-date">${escape(new Date(block.start).toLocaleDateString('en-US', { weekday: 'short' }))}<strong>${new Date(block.start).getDate()}</strong></div><div><h3>${escape(task?.title || 'Work block')}</h3><p>${escape(timeLabel(block.start))}–${escape(timeLabel(block.end))} · ${formatMinutes(blockDuration(block))}</p><p>${escape(task?.course || '')}</p></div><span class="plan-state">${block.googleEventId ? (link ? `<a href="${link}" target="_blank" rel="noopener noreferrer">In Calendar ↗</a>` : 'In Calendar') : 'Local plan'}</span></article>`;
+          const startDate = new Date(block.start);
+          return `<article class="plan-item"><div class="plan-date"><span>${escape(startDate.toLocaleDateString('en-US', { month: 'short' }))}</span><strong>${startDate.getDate()}</strong></div><div><h3>${escape(task?.title || 'Work block')}</h3><p>${escape(timeLabel(block.start))}–${escape(timeLabel(block.end))} · ${formatMinutes(blockDuration(block))}</p><p>${escape(task?.course || '')}</p></div><div class="plan-actions">${block.googleEventId ? '' : `<button type="button" class="text-button plan-move" data-action="earlier" data-block-id="${block.id}">Earlier</button>`}<span class="plan-state">${block.googleEventId ? (link ? `<a href="${link}" target="_blank" rel="noopener noreferrer">In Calendar ↗</a>` : 'In Calendar') : 'Local plan'}</span></div></article>`;
         })
         .join('') +
       `<button class="text-button" id="clear-local-plans">Clear unpublished work blocks</button>`
@@ -175,7 +198,7 @@ function render() {
   for (const button of document.querySelectorAll('[data-mode]'))
     button.setAttribute('aria-pressed', button.dataset.mode === state.settings.visualMode);
   $('#display-help').textContent = {
-    off: 'Calendar labels and patterns are hidden.',
+    off: 'Effort marks are hidden. Names, times, and the busy-day note stay.',
     tags: 'Effort in words and symbols, alongside course colors.',
     patterns: 'Course colors stay. Text and patterns add effort.',
   }[state.settings.visualMode];
@@ -196,7 +219,19 @@ function render() {
   $('#calendar-note').textContent = state.google.connected
     ? 'Primary Google Calendar · use Refresh to pull changes.'
     : 'Sample classes help make the demo realistic.';
+  const collisionButton = $('#collision-week');
+  if (collisionButton) {
+    collisionButton.hidden = !nextCollision;
+    if (nextCollision) {
+      collisionButton.dataset.day = nextCollision.day;
+      collisionButton.textContent = `Busy ${dateFromKey(nextCollision.day).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+    }
+  }
+  $('#calendar-hint').textContent = state.blocks.some((block) => !block.googleEventId)
+    ? 'Drag a work block to another open time.'
+    : 'Time for life, too.';
   if (!isExtension) renderCalendar();
+  if (popover) renderPopover();
 }
 function renderCalendar() {
   const days = Array.from({ length: 7 }, (_, i) => addDays(week, i));
@@ -215,12 +250,22 @@ function renderCalendar() {
       task: state.tasks.find((t) => t.id === b.taskId),
     })),
   ];
+  const collisions = collisionDays(state.tasks, state.settings.dailyLimit);
+  const loadRow =
+    mode !== 'off' && days.some((day) => collisions.some((group) => group.day === dayKey(day)))
+      ? `<div class="week-load"><div class="deadline-gutter">BUSY</div>${days
+          .map((day) => {
+            const hit = collisions.find((group) => group.day === dayKey(day));
+            return `<div class="banner-day">${hit ? `<p class="collision-banner"><strong>Busy</strong> ${hit.tasks.length} due · ${formatMinutes(hit.minutes)}</p>` : ''}</div>`;
+          })
+          .join('')}</div>`
+      : '';
   $('#calendar').innerHTML =
     `<div class="week-head"><div></div>${days.map((day) => `<div class="day-heading ${dayKey(day) === today ? 'today' : ''}"><span>${day.toLocaleDateString('en-US', { weekday: 'short' })}</span><strong>${day.getDate()}</strong></div>`).join('')}</div>
-    <div class="week-deadlines"><div class="deadline-gutter">DUE</div>${days
+    ${loadRow}<div class="week-deadlines"><div class="deadline-gutter">DUE</div>${days
       .map((day) => {
         const due = state.tasks.filter((t) => !t.completed && dayKey(t.due) === dayKey(day));
-        return `<div class="deadline-day">${due.map((t) => `<button class="deadline-chip ${t.effort === 'high' ? 'heavy' : ''} ${mode === 'patterns' ? `pattern-${t.effort}` : ''}" data-action="edit" data-id="${t.id}" title="${escape(`${t.title} · ${formatMinutes(t.estimateMinutes)} estimated · due ${timeLabel(t.due)}`)}">${mode !== 'off' ? `${tierTag(t.effort)} ` : ''}${escape(t.title)}</button>`).join('')}${busy
+        return `<div class="deadline-day">${due.map((t) => `<button class="deadline-chip ${mode !== 'off' && t.effort === 'high' ? 'heavy' : ''} ${mode === 'patterns' ? `pattern-${t.effort}` : ''}" data-action="inspect" data-id="${t.id}" title="${escape(`${t.title} · ${tierLabel(t.effort)} · ${formatMinutes(t.estimateMinutes)} estimated · due ${timeLabel(t.due)}`)}">${mode !== 'off' ? `${tierTag(t.effort)} ` : ''}${escape(t.title)}</button>`).join('')}${busy
           .filter((e) => e.allDay && dayKey(e.start) <= dayKey(day) && dayKey(e.end) > dayKey(day))
           .map(
             (e) =>
@@ -270,13 +315,17 @@ function renderCalendar() {
           clusterEnd = Math.max(clusterEnd, event.to);
         }
         placeCluster();
-        return `<div class="day-lane ${dayKey(day) === today ? 'today' : ''}">${positioned
+        return `<div class="day-lane ${dayKey(day) === today ? 'today' : ''}" data-day="${dayKey(day)}">${positioned
           .map((e) => {
             const title = e.work ? e.task?.title || 'Work block' : e.title;
             const top = ((e.from - 480) / 60) * 52,
               height = ((e.to - e.from) / 60) * 52;
-            const action = e.work && e.task ? `data-action="edit" data-id="${e.task.id}"` : '';
-            return `<button class="calendar-event ${e.work ? 'work' : ''} ${e.work && mode === 'patterns' ? `pattern-${e.task?.effort}` : ''}" ${action} style="top:${top}px;height:${height}px;left:calc(${(e.col / e.columns) * 100}% + 3px);width:calc(${100 / e.columns}% - 6px);right:auto" title="${escape(`${title} · ${timeLabel(e.start)}–${timeLabel(e.end)}`)}"><strong>${escape(title)}</strong>${height > 28 ? `<small>${escape(timeLabel(e.start))}</small>` : ''}${e.work && mode !== 'off' && height > 45 ? `<span class="event-effort">${tierTag(e.task?.effort)} ${formatMinutes(blockDuration(e))}</span>` : ''}</button>`;
+            const movable = Boolean(e.work && e.task && e.id && !e.googleEventId);
+            const action =
+              e.work && e.task
+                ? `data-action="inspect" data-id="${e.task.id}" data-block-id="${e.id}"${movable ? ` data-drag-block="${e.id}"` : ''}`
+                : '';
+            return `<button class="calendar-event ${e.work ? 'work' : ''} ${movable ? 'movable' : ''} ${e.work && mode === 'patterns' ? `pattern-${e.task?.effort}` : ''}" ${action} style="top:${top}px;height:${height}px;left:calc(${(e.col / e.columns) * 100}% + 3px);width:calc(${100 / e.columns}% - 6px);right:auto" title="${escape(`${title} · ${timeLabel(e.start)}–${timeLabel(e.end)}${e.task ? ` · ${tierLabel(e.task.effort)}` : ''}`)}"><strong>${escape(title)}</strong>${height > 28 ? `<small>${escape(timeLabel(e.start))}</small>` : ''}${e.work && mode !== 'off' && height > 36 ? `<span class="event-effort">${tierTag(e.task?.effort)} ${tierLabel(e.task?.effort)}</span>` : ''}</button>`;
           })
           .join('')}</div>`;
       })
@@ -310,7 +359,7 @@ function updateEstimate() {
     $('#estimate-reason').textContent = estimate.reason;
     $('.estimate-preview small').textContent = draftAnalysis
       ? draftAnalysis.provider === 'demo'
-        ? 'Fixed demo suggestion. No AI call was made.'
+        ? 'Sample suggestion. No model was used.'
         : 'AI suggestion. Your experience gets the final say.'
       : 'Rule-based starting point. Your experience gets the final say.';
     $('#task-estimate').placeholder = `${estimate.minutes} min · suggested`;
@@ -353,6 +402,11 @@ function openTask(id = null) {
       'effort',
     ])
       form.elements[key].value = task[key];
+  form.elements.pointsPossible.value = task?.pointsPossible ?? '';
+  form.elements.submissionType.value = task?.submissionTypes?.[0] || '';
+  form.elements.taskReminderCount.value = Number.isInteger(task?.reminderCount)
+    ? String(task.reminderCount)
+    : 'default';
   $('#task-due').value = localInput(task ? new Date(task.due) : atHour(addDays(new Date(), 3), 23));
   $('#task-error').hidden = true;
   renderAttachment();
@@ -428,9 +482,10 @@ function openSettings(showConnectionGuide = false) {
   $('#settings-error').hidden = true;
   $('#settings-dialog').showModal();
 }
-function confirmAction(title, description, callback) {
+function confirmAction(title, description, callback, confirmLabel = 'Continue') {
   $('#confirm-title').textContent = title;
   $('#confirm-description').textContent = description;
+  $('#confirm-action').textContent = confirmLabel;
   confirmCallback = callback;
   $('#confirm-dialog').showModal();
 }
@@ -485,8 +540,9 @@ function updateSplitControls(invalidate = true) {
         .map(Number)
         .reduce((n, v) => n + v, 0)
     : 0;
-  $('#split-summary').textContent =
-    `${formatMinutes(remaining)} remaining.${custom ? ` Your blocks total ${Number.isFinite(sum) ? formatMinutes(sum) : '—'}.` : ' The final block may be shorter to match the estimate.'}${invalidate ? ' Click Update plan to apply these lengths.' : ''}`;
+  $('#split-summary').textContent = custom
+    ? `${formatMinutes(remaining)} to plan. Your blocks total ${Number.isFinite(sum) ? formatMinutes(sum) : '—'}.${invalidate ? ' Click Update plan to apply these lengths.' : ''}`
+    : `Planning ${formatMinutes(remaining)}. The last block may be shorter so the total matches the estimate.${invalidate ? ' Click Update plan to apply this length.' : ''}`;
   if (invalidate) {
     proposal = null;
     $('#save-plan').disabled = true;
@@ -513,7 +569,8 @@ async function refreshProposal(button) {
       updateSplitControls(false);
       $('#plan-description').textContent =
         `${proposal.blocks.length} suggested work blocks. ${proposal.realCalendar ? 'Checked against your primary Google Calendar.' : 'Demo mode: checked against sample classes.'} Saving keeps this plan local.`;
-      $('#proposal-list').innerHTML = proposal.blocks
+      $('#proposal-list').innerHTML = [...proposal.blocks]
+        .sort((a, b) => new Date(a.start) - new Date(b.start))
         .map(
           (b) =>
             `<div class="proposal-item"><div><strong>${escape(longDate(b.start))}</strong><p>${escape(timeLabel(b.start))} – ${escape(timeLabel(b.end))}</p></div><span>${formatMinutes(blockDuration(b))}</span></div>`,
@@ -532,6 +589,16 @@ async function refreshProposal(button) {
     '#plan-error',
   );
 }
+document.addEventListener(
+  'click',
+  (event) => {
+    if (!suppressClick) return;
+    suppressClick = false;
+    event.preventDefault();
+    event.stopPropagation();
+  },
+  true,
+);
 document.addEventListener('click', (event) => {
   const close = event.target.closest('.close-dialog');
   if (close) {
@@ -539,9 +606,30 @@ document.addEventListener('click', (event) => {
     return;
   }
   const button = event.target.closest('[data-action]');
+  if (popover && !event.target.closest('#event-popover') && button?.dataset.action !== 'inspect')
+    closePopover();
   if (!button) return;
   const { action, id } = button.dataset;
-  if (action === 'edit') openTask(id);
+  if (action === 'inspect') {
+    openPopover(button);
+    return;
+  }
+  if (action === 'show-day') {
+    week = startOfWeek(dateFromKey(button.dataset.day));
+    renderCalendar();
+    return;
+  }
+  if (action === 'earlier') {
+    work(button, async () => {
+      await send('MOVE_EARLIER', { id: button.dataset.blockId });
+      toast('Moved to an earlier open time.');
+    });
+    return;
+  }
+  if (action === 'edit') {
+    closePopover();
+    openTask(id);
+  }
   if (action === 'plan') showPlan(id, button);
   if (action === 'effort')
     work(button, async () => {
@@ -558,6 +646,7 @@ document.addEventListener('click', (event) => {
       async () => {
         await send('DELETE_TASK', { id });
       },
+      'Remove assignment',
     );
 });
 $('#new-task').addEventListener('click', () => openTask());
@@ -600,7 +689,8 @@ $('#save-plan').addEventListener('click', (event) =>
         blocks: proposal.blocks,
         options: proposal.options,
       });
-      if (proposal.blocks[0]) week = startOfWeek(new Date(proposal.blocks[0].start));
+      const latest = [...proposal.blocks].sort((a, b) => new Date(b.start) - new Date(a.start))[0];
+      if (latest) week = startOfWeek(new Date(latest.start));
       $('#plan-dialog').close();
       setTab('plan');
       toast('Work blocks saved locally. Your breathing room is protected.');
@@ -752,7 +842,7 @@ $('#analyze-assignment').addEventListener('click', async (event) => {
     form.elements.size.value = TYPES[result.type].defaultSize;
     form.elements.estimateMinutes.value = result.estimate.minutes;
     form.elements.effort.value = '';
-    $('#task-due').value = result.deadline ? localInput(result.deadline) : '';
+    if (result.deadline) $('#task-due').value = localInput(result.deadline);
     renderAnalysis();
     updateEstimate();
     $('#analysis-progress').textContent =
@@ -823,6 +913,165 @@ $('.tabs').addEventListener('keydown', (event) => {
     );
   }
 });
+$('#close-popover').addEventListener('click', () => closePopover());
+document.addEventListener('keydown', (event) => {
+  if (event.key !== 'Escape' || !popover || document.querySelector('dialog[open]')) return;
+  closePopover();
+});
+$('#popover-edit').addEventListener('click', () => {
+  const id = popover?.taskId;
+  closePopover();
+  if (id) openTask(id);
+});
+$('#popover-plan').addEventListener('click', (event) => {
+  const id = popover?.taskId;
+  closePopover();
+  if (id) showPlan(id, event.currentTarget);
+});
+$('#popover-earlier').addEventListener('click', (event) => {
+  const id = popover?.blockId;
+  if (!id) return;
+  work(event.currentTarget, async () => {
+    await send('MOVE_EARLIER', { id });
+    toast('Moved to an earlier open time.');
+  });
+});
+$('#collision-week').addEventListener('click', () => {
+  const day = $('#collision-week').dataset.day;
+  if (!day) return;
+  week = startOfWeek(dateFromKey(day));
+  renderCalendar();
+});
+document.addEventListener('pointerdown', (event) => {
+  const handle = event.target.closest('[data-drag-block]');
+  if (!handle || event.button !== 0) return;
+  drag = {
+    id: handle.dataset.dragBlock,
+    x: event.clientX,
+    y: event.clientY,
+    moved: false,
+    pointerId: event.pointerId,
+    handle,
+  };
+});
+document.addEventListener('pointermove', (event) => {
+  if (!drag || event.pointerId !== drag.pointerId) return;
+  if (Math.hypot(event.clientX - drag.x, event.clientY - drag.y) < 6) return;
+  drag.moved = true;
+  drag.handle.classList.add('is-dragging');
+  const lane = laneAt(event.clientX, event.clientY);
+  document.querySelectorAll('.day-lane.drop-target').forEach((node) => {
+    if (node !== lane) node.classList.remove('drop-target');
+  });
+  lane?.classList.add('drop-target');
+});
+document.addEventListener('pointerup', (event) => {
+  if (!drag || event.pointerId !== drag.pointerId) return;
+  const info = drag;
+  drag = null;
+  document
+    .querySelectorAll('.day-lane.drop-target')
+    .forEach((node) => node.classList.remove('drop-target'));
+  if (!info.moved) return;
+  suppressClick = true;
+  const lane = laneAt(event.clientX, event.clientY);
+  info.handle.classList.remove('is-dragging');
+  if (!lane) {
+    toast('Drop the work block on an open time in the week.', true);
+    return;
+  }
+  const start = startFromLane(lane, event.clientY);
+  work(null, async () => {
+    await send('MOVE_BLOCK', { id: info.id, start });
+    if (popover?.blockId === info.id) popover = { ...popover };
+    toast('Work block moved. The estimate stays the same.');
+  });
+});
+function laneAt(x, y) {
+  return [...document.elementsFromPoint(x, y)].find((node) => node.classList?.contains('day-lane'));
+}
+function startFromLane(lane, clientY) {
+  const rect = lane.getBoundingClientRect();
+  const snapped = Math.round((8 * 60 + ((clientY - rect.top) / 52) * 60) / 15) * 15;
+  const [year, month, day] = lane.dataset.day.split('-').map(Number);
+  const date = new Date(year, month - 1, day, 0, 0, 0, 0);
+  date.setMinutes(snapped);
+  return date.toISOString();
+}
+function closePopover() {
+  popover = null;
+  $('#event-popover').hidden = true;
+}
+function openPopover(button) {
+  const task = state.tasks.find((item) => item.id === button.dataset.id);
+  if (!task) return;
+  popover = { taskId: task.id, blockId: button.dataset.blockId || null };
+  renderPopover(button);
+  $('#close-popover')?.focus();
+}
+function renderPopover(anchor) {
+  if (!popover) return;
+  const task = state.tasks.find((item) => item.id === popover.taskId);
+  const node = $('#event-popover');
+  if (!task) {
+    closePopover();
+    return;
+  }
+  const block = state.blocks.find((item) => item.id === popover.blockId);
+  $('#popover-course').textContent = task.course;
+  $('#popover-title').textContent = task.title;
+  const badge =
+    state.settings.visualMode === 'off'
+      ? ''
+      : `${tierTag(task.effort)} ${tierLabel(task.effort)} · `;
+  $('#popover-estimate').textContent = `${badge}Estimate ${formatMinutes(task.estimateMinutes)}`;
+  const reminders = Number.isInteger(task.reminderCount)
+    ? `${task.reminderCount} reminder${task.reminderCount === 1 ? '' : 's'} per block`
+    : `Reminders follow your default (${state.settings.reminderCount})`;
+  $('#popover-meta').textContent = [
+    `Due ${longDate(task.due)} ${timeLabel(task.due)}`,
+    task.pointsPossible != null ? `${task.pointsPossible} points` : '',
+    submissionLabel(task.submissionTypes?.[0]),
+    reminders,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+  $('#popover-effort').innerHTML = ['low', 'medium', 'high']
+    .map(
+      (tier) =>
+        `<button type="button" data-action="effort" data-id="${task.id}" data-effort="${tier}" aria-label="${tier} effort: ${escape(task.title)}" aria-pressed="${task.effort === tier}">${tierTag(tier)} ${tierLabel(tier)}</button>`,
+    )
+    .join('');
+  $('#popover-hint').textContent = block
+    ? block.googleEventId
+      ? 'This block is on Google Calendar. Move it there, then refresh.'
+      : `Work block ${timeLabel(block.start)}–${timeLabel(block.end)}. Drag it to an earlier open slot.`
+    : 'This changes the effort label only. The hours stay the same.';
+  const planned = plannedMinutes(task.id, state.blocks);
+  $('#popover-plan').hidden = task.completed || planned >= task.estimateMinutes;
+  $('#popover-earlier').hidden = !block || Boolean(block.googleEventId);
+  node.hidden = false;
+  const target =
+    anchor ||
+    (popover.blockId
+      ? document.querySelector(`.calendar-event[data-block-id="${CSS.escape(popover.blockId)}"]`)
+      : null) ||
+    document.querySelector(`[data-action="inspect"][data-id="${CSS.escape(task.id)}"]`);
+  const margin = 8;
+  const width = Math.min(320, window.innerWidth - margin * 2);
+  node.style.width = `${width}px`;
+  const rect = target?.getBoundingClientRect();
+  let left = rect ? rect.left : (window.innerWidth - width) / 2;
+  let top = rect ? rect.bottom + margin : 72;
+  if (left + width > window.innerWidth - margin) left = window.innerWidth - width - margin;
+  node.style.left = `${Math.max(margin, left)}px`;
+  node.style.top = `${Math.max(margin, top)}px`;
+  const box = node.getBoundingClientRect();
+  if (box.bottom > window.innerHeight - margin) {
+    const flipped = (rect?.top || box.top) - box.height - margin;
+    node.style.top = `${Math.max(margin, flipped)}px`;
+  }
+}
 $('#prev-week').addEventListener('click', () => {
   week = addDays(week, -7);
   renderCalendar();
@@ -844,6 +1093,7 @@ $('#demo-button').addEventListener('click', () =>
       week = startOfWeek(new Date());
       toast('Example assignments refreshed.');
     },
+    'Reload examples',
   ),
 );
 $('#confirm-action').addEventListener('click', (event) =>
@@ -861,6 +1111,7 @@ $('#plan-list').addEventListener('click', (event) => {
       for (const task of state.tasks) await send('CLEAR_PLAN', { id: task.id });
       toast('Unpublished blocks cleared.');
     },
+    'Clear blocks',
   );
 });
 function connectCalendar(event, fromSettings = false) {
