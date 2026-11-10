@@ -13,12 +13,10 @@ chrome.runtime.onStartup.addListener(setPanelBehavior);
 setPanelBehavior();
 chrome.runtime.onMessage.addListener((message, sender, respond) => {
   if (sender.id !== chrome.runtime.id) return;
-  // Calendar page scripts only receive the minimal styling index; only extension pages can mutate data.
-  if (
-    sender.tab &&
-    !sender.url?.startsWith(chrome.runtime.getURL('')) &&
-    message?.type !== 'GET_CONTENT_STATE'
-  ) {
+  // Calendar page scripts can read the styling index and update an effort label.
+  // Every other change stays inside WAC.
+  const contentAction = message?.type === 'GET_CONTENT_STATE' || message?.type === 'SET_EFFORT';
+  if (sender.tab && !sender.url?.startsWith(chrome.runtime.getURL('')) && !contentAction) {
     respond({ ok: false, error: 'This action is only available inside WAC.' });
     return;
   }

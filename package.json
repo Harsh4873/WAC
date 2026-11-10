@@ -1,6 +1,6 @@
 {
   "name": "workload-aware-calendar",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "private": true,
   "type": "module",
   "description": "WAC Chrome extension and local assignment-analysis service for an HCI course project.",

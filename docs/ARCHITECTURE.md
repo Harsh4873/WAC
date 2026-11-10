@@ -25,10 +25,13 @@ browser tests; they are excluded from the store package.
 2. The bridge sends a message to the background controller.
 3. The controller validates and serializes changes, then saves `wacState` in `chrome.storage.local`.
 4. Find time produces a proposal using the remaining estimate, preferences, deadlines, and busy
-   time.
+   time. Blocks sit on the open days just before the deadline. The due day is used only when earlier
+   days cannot hold the work.
 5. Saving a proposal revalidates it against current state. Saving keeps it local.
 6. Publishing is a separate user-confirmed operation. It checks current Google availability and
-   creates events on the primary calendar.
+   creates events on the primary calendar. Each assignment can override the default reminder count.
+7. Unpublished blocks can move to another open time. The same checks used for a new plan apply. A
+   collision banner is derived from deadlines and the daily limit; it is not stored on its own.
 
 The controller protects published blocks from accidental local deletion. Deterministic Google event
 IDs and private WAC metadata allow recovery from duplicate submissions and lost responses. A partial
@@ -53,8 +56,9 @@ sample week for offline demonstrations. These environments have separate storage
 authenticate through Chrome Identity.
 
 The content script receives a limited styling index, not the complete profile or original uploads.
-Only extension pages can send state-changing background messages. Native event decoration matches
-WAC-created event titles and may need updates when Google changes its page structure.
+Extension pages send the state-changing messages. The Calendar content script may also send
+`SET_EFFORT` from the event badge. Native event decoration matches WAC-created event titles and may
+need updates when Google changes its page structure.
 
 ## Storage compatibility
 

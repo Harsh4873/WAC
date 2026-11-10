@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.1.3 — 2026-11-09
+
+- Show an all-day collision banner when deadlines on the same day exceed the daily work limit.
+- Let unpublished work blocks be dragged on the preview week, or moved earlier from the plan list.
+- Open an estimate popover with a one-click Low, Medium, or High override.
+- Store Canvas-style points and submission type on assignments, including the course examples.
+- Let each assignment choose its own reminder count. The settings value stays the default.
+- On Google Calendar, show Low / Medium / High on WAC events and a collision notice. The event badge
+  opens the same one-click estimate override.
+- Place new work on the open days just before a deadline, instead of filling the next open day.
+- Say Medium on Google Calendar, and fill effort stripes across the event instead of a hairline.
+
 ## 0.1.2 — 2026-10-30
 
 - Set course example deadlines to December 7, 10, 10, and 14, 2026.

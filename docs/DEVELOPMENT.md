@@ -33,10 +33,13 @@ Open [the local demo](http://127.0.0.1:8765/sidepanel.html). The Node preview se
 loopback, serves runtime assets, and blocks environment files, server code, and Git metadata. The
 preview uses sample data and its own local storage.
 
-The course examples are due on December 7, 10, 10, and 14, 2026 at 11:00 p.m. local time. Opening
-WAC after this update refreshes untouched, unpublished older examples once and clears their stale
-local work blocks. Edited, completed, manual, and published tasks are preserved. Use **Load
-examples** to explicitly replace unpublished examples with a fresh set.
+The course examples are due on December 7, 10, 10, and 14, 2026 at 11:00 p.m. local time. December
+10 carries two deadlines whose combined estimate exceeds the daily limit, so the preview shows a
+collision banner on that day. If the current week has no deadlines, the preview opens on the week of
+the next example deadline. Opening WAC after this update refreshes untouched, unpublished older
+examples once and clears their stale local work blocks. Edited, completed, manual, and published
+tasks are preserved. Use **Load examples** to explicitly replace unpublished examples with a fresh
+set.
 
 In a separate terminal, use the fixed analysis fixture without model charges:
 

@@ -62,7 +62,8 @@ try {
     [...document.querySelectorAll('.task-card')]
       .find((c) => c.textContent.includes('User test'))
       ?.querySelector('.effort-badge')
-      ?.textContent.includes('high'),
+      ?.textContent.toLowerCase()
+      .includes('high'),
   );
   await taskCard.getByRole('button', { name: 'Find time ↗', exact: true }).click();
   await page.waitForSelector('#plan-dialog[open]');

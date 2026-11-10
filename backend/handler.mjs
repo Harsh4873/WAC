@@ -150,8 +150,7 @@ export function createAnalysisHandler({
                 type: input.task.type,
                 complexity: 'medium',
                 deadline: null,
-                summary:
-                  'Demonstration draft only. No AI service was called and PDF contents were not read.',
+                summary: 'Sample suggestion. No AI service was called.',
                 estimate: { minutes: 120, lowMinutes: 90, highMinutes: 180 },
                 steps: [
                   { title: 'Review the requirements', minutes: 30 },
@@ -159,10 +158,10 @@ export function createAnalysisHandler({
                   { title: 'Review and revise', minutes: 30 },
                 ],
                 reasons: [
-                  'This is a fixed example for testing the import workflow, not an AI assessment.',
+                  'Sample suggestion. No model was used. Keep your own deadline and estimate.',
                 ],
                 assumptions: ['Replace this estimate with your own judgment.'],
-                questions: ['What is the deadline?'],
+                questions: [],
                 suggestedBlockMinutes: input.profile.preferredBlockMinutes,
               })
             : await generate(input, {

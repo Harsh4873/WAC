@@ -1,16 +1,87 @@
+#wac-collision-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 2147483646;
+  margin: 0;
+  padding: 8px 14px;
+  box-shadow: 0 1px 0 #8a6232;
+  background: #f6ecdc
+    repeating-linear-gradient(135deg, transparent 0 4px, rgba(0, 0, 0, 0.14) 4px 5px);
+  color: #5c3b16;
+  font:
+    600 13px/1.4 Arial,
+    sans-serif;
+  border-bottom: 2px solid #8a6232;
+  text-align: left;
+}
+.wac-event {
+  overflow: visible !important;
+}
 .wac-event .wac-effort-badge {
   display: inline-block !important;
   margin: 1px 5px !important;
   padding: 0 4px !important;
   border: 1px solid currentColor !important;
   border-radius: 4px !important;
+  appearance: none !important;
+  background: transparent !important;
   font:
     600 10px/15px Arial,
     sans-serif !important;
   color: inherit !important;
   white-space: nowrap !important;
-  pointer-events: none !important;
+  pointer-events: auto !important;
+  cursor: pointer !important;
   vertical-align: middle !important;
+}
+#wac-estimate-popover {
+  position: fixed;
+  z-index: 2147483647;
+  width: 220px;
+  max-height: calc(100vh - 16px);
+  overflow: auto;
+  padding: 10px;
+  border: 1px solid #c8b48a;
+  border-radius: 8px;
+  background: #fffdf8;
+  color: #3d3428;
+  box-shadow: 0 8px 24px rgba(40, 30, 10, 0.18);
+  font:
+    600 12px/1.4 Arial,
+    sans-serif;
+}
+#wac-estimate-popover p {
+  margin: 0 0 8px;
+}
+#wac-estimate-popover div {
+  display: flex;
+  gap: 4px;
+}
+.wac-estimate-choice {
+  flex: 1;
+  border: 1px solid #d7d2c6;
+  border-radius: 4px;
+  background: #f6f3ec;
+  color: #4d463c;
+  font:
+    600 11px/1.2 Arial,
+    sans-serif;
+  padding: 6px 2px;
+  cursor: pointer;
+}
+.wac-estimate-choice[aria-pressed='true'] {
+  border-color: #315b47;
+  background: #e7f0e4;
+  color: #315b47;
+}
+.wac-event.wac-patterns.wac-effort-low {
+  background-image: repeating-linear-gradient(
+    135deg,
+    transparent 0 7px,
+    rgba(0, 0, 0, 0.16) 7px 8px
+  ) !important;
 }
 .wac-event.wac-patterns.wac-effort-medium {
   background-image: repeating-linear-gradient(
@@ -18,8 +89,6 @@
     transparent 0 4px,
     rgba(0, 0, 0, 0.2) 4px 5px
   ) !important;
-  background-size: 6px 100% !important;
-  background-repeat: no-repeat !important;
 }
 .wac-event.wac-patterns.wac-effort-high {
   background-image: repeating-linear-gradient(
@@ -27,6 +96,4 @@
     transparent 0 2px,
     rgba(0, 0, 0, 0.3) 2px 3px
   ) !important;
-  background-size: 7px 100% !important;
-  background-repeat: no-repeat !important;
 }

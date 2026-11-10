@@ -8,10 +8,10 @@ course prototype.
 
 ## Information WAC handles
 
-- **Tasks and learning preferences:** task titles, course labels, deadlines, instructions,
-  estimates, completion status, work-block plans, settings, and optional self-reported learning
-  preferences such as study area, familiar topics, reading pace, writing confidence, and preferred
-  focus length.
+- **Tasks and learning preferences:** task titles, course labels, deadlines, points, submission
+  type, instructions, estimates, per-assignment reminder counts, completion status, work-block
+  plans, settings, and optional self-reported learning preferences such as study area, familiar
+  topics, reading pace, writing confidence, and preferred focus length.
 - **Attachments:** file name, type, and size. TXT and Markdown content can be added to saved task
   instructions. Original PDF files are held temporarily for an analysis request and are not retained
   in WAC's task storage; reattaching a PDF is required to analyze it again.
@@ -28,7 +28,8 @@ course prototype.
 WAC uses this information to provide editable time estimates, display effort and workload, find
 available times, save local plans, and create work blocks on the user's primary Google Calendar
 after the user reviews and confirms publication. A content script on calendar.google.com matches
-WAC-created events to add effort labels and patterns.
+WAC-created events to add effort labels and patterns, shows a collision notice, and can update an
+estimate from the event badge. That update is saved in local task storage.
 
 The prototype does not include advertising, behavioral analytics, sale of user data,
 creditworthiness assessment, or lending decisions. Personal information is not used for purposes

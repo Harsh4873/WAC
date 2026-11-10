@@ -8,8 +8,10 @@
 - AI analysis requires a separately configured local service. No hosted backend or model API key is
   included. Demo analysis is a fixed labeled fixture and does not interpret PDF content.
 - Planning covers one task at a time, considers up to 30 days ahead, and does not automatically
-  rearrange existing blocks. Uniform plans may end with a shorter remainder. Custom shorter totals
-  can be saved as partial plans; missing time is reported.
+  rearrange existing blocks. New blocks are placed on the open days just before the deadline, not
+  piled onto tomorrow when the deadline is weeks away. The due day is used only when earlier days
+  cannot hold the work. Uniform plans may end with a shorter remainder. Custom shorter totals can be
+  saved as partial plans; missing time is reported.
 - Real availability and synchronization cover the primary Google calendar only. The daily limit
   counts WAC work blocks, not all classes, activities, or cognitive demands.
 - Publication requires user review and confirmation. Assignment deadlines are not automatically
@@ -19,8 +21,9 @@
 - Deleting local plans, disconnecting Google, or uninstalling WAC does not delete published events.
   Manage those events in Google Calendar. The controller prevents deleting an assignment while its
   published blocks remain known locally.
-- Dragging unpublished cards from WAC into Google Calendar is not implemented. Published Google
-  events can be moved in native Calendar.
+- Unpublished work blocks can be dragged on the preview week, or moved earlier from the plan list.
+  Dragging a block from the side panel into the Google Calendar grid is not implemented. Published
+  events move in Google Calendar; refresh pulls the new time.
 - Effort labels and stripes are applied locally to WAC-created events by a content script. The
   Google Calendar API does not support these arbitrary patterns. Renaming an event or a Google page
   redesign can affect matching and styling.

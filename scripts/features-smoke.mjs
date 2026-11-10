@@ -133,7 +133,7 @@ try {
   assert.equal(captured.attachment.data, pdf.toString('base64'));
   assert.ok(!JSON.stringify(captured).includes('access_token'));
   assert.equal(await page.locator('#task-title').inputValue(), 'Source comparison');
-  assert.equal(await page.locator('#task-due').inputValue(), '');
+  assert.notEqual(await page.locator('#task-due').inputValue(), '');
   const due = await page.evaluate(() => {
     const d = new Date();
     d.setDate(d.getDate() + 7);

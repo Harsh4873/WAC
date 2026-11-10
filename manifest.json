@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "WAC · Workload Aware Calendar",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "See the effort behind your deadlines. Estimate assignments, plan work blocks, and connect Google Calendar.",
   "minimum_chrome_version": "116",
   "permissions": ["storage", "sidePanel", "identity"],

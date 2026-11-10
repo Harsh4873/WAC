@@ -33,7 +33,12 @@ test users.
   deadline checks, and explicit partial-plan reporting.
 - Review local plans, check primary-calendar availability, and publish confirmed work blocks.
 - Add effort labels and optional stripes to WAC-created events using Off, Tags, and Patterns
-  controls.
+  controls. A collision banner marks a day whose deadlines exceed the daily work limit.
+- Open an estimate popover on a deadline or work block and override Low, Medium, or High in one
+  click. Drag an unpublished work block to another open time, or use Earlier on the plan list. Find
+  time places that work on the open days before the deadline.
+- Record points and a submission type with each assignment. Reminder count can follow the default
+  setting or be chosen per assignment.
 
 Optional AI analysis requires the included local service to be configured separately. This source
 contains no model API key or hosted AI service. The explicit demo mode uses a fixed response with no
